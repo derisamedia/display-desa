@@ -40,16 +40,6 @@
     "updatedAt": 1791939517176.851
   },
   {
-    "id": "media-73616d706c",
-    "filename": "sample-video-pelayanan.mp4",
-    "type": "video",
-    "src": "media/sample-video-pelayanan.mp4",
-    "title": "Video Display Informasi Layanan Publik",
-    "desc": "Tayangan video profil edukasi dan panduan informasi digital",
-    "size": 1128375,
-    "updatedAt": 1791941182558.6714
-  },
-  {
     "id": "media-5768617473",
     "filename": "WhatsApp Image 2026-10-14 at 16.23.29.jpeg",
     "type": "image",

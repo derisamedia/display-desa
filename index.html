@@ -135,6 +135,12 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
             <span class="action-caption" id="sideFitCaption">Fit</span>
           </button>
+
+          <!-- Open Web in New Tab Button (Visible when slide is Web) -->
+          <a id="btnSideOpenWeb" class="reels-action-btn hidden" href="#" target="_blank" rel="noopener noreferrer" title="Buka Halaman Web Asli di Tab Baru">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            <span class="action-caption">Buka Web</span>
+          </a>
         </div>
 
         <!-- Reels Bottom Overlay (Title, Description, Badge, Counter) -->
@@ -201,6 +207,7 @@
             <button class="chip active" data-filter="all">Semua (<span id="countAll">0</span>)</button>
             <button class="chip" data-filter="image">Foto Saja (<span id="countPhotos">0</span>)</button>
             <button class="chip" data-filter="video">Video Saja (<span id="countVideos">0</span>)</button>
+            <button class="chip" data-filter="web">Web / Iframe (<span id="countWeb">0</span>)</button>
           </div>
 
           <div class="gallery-toolbar-actions">
@@ -325,21 +332,50 @@
 
         <!-- TAB 2: URL INPUT -->
         <div id="urlTab" class="tab-pane hidden">
+          <!-- Preset Rekomendasi Siaga 112 Cuaca Kab. Bogor -->
+          <div class="preset-card" style="margin-bottom: 1.25rem; padding: 0.9rem 1.1rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(99, 102, 241, 0.08)); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: var(--radius-md);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;">
+              <div>
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.4rem;">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  Preset Rekomendasi: Cuaca 40 Kecamatan
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px;">
+                  Prakiraan Cuaca BMKG Siaga 112 Pemkab Bogor (Live Dashboard)
+                </div>
+              </div>
+              <button type="button" id="btnApplyCuacaPreset" class="btn-primary" style="padding: 0.45rem 0.85rem; font-size: 0.76rem; white-space: nowrap;">
+                ⚡ Pasang Cuaca 112
+              </button>
+            </div>
+          </div>
+
           <form id="urlMediaForm" class="url-form">
             <div class="form-group">
-              <label for="urlType">Jenis Media:</label>
+              <label for="urlType">Jenis Tampilan Media:</label>
               <select id="urlType" class="form-control">
-                <option value="image">Foto / Gambar (JPG, PNG, WebP)</option>
-                <option value="video">Video (MP4 / WebM Direct URL)</option>
+                <option value="web" selected>🌐 Halaman Web / Iframe (Live Dashboard, Cuaca, CCTV, dll)</option>
+                <option value="image">🖼️ Foto / Gambar (JPG, PNG, WebP)</option>
+                <option value="video">🎬 Video (MP4 / WebM Direct URL)</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="urlMediaLink">Tautan URL Media:</label>
-              <input type="url" id="urlMediaLink" class="form-control" placeholder="https://example.com/banner-layanan.jpg" required>
+              <label for="urlMediaLink">Tautan URL:</label>
+              <input type="url" id="urlMediaLink" class="form-control" placeholder="https://siaga112.bogorkab.go.id/cuaca-kecamatan" required>
             </div>
             <div class="form-group">
               <label for="urlMediaTitle">Judul / Keterangan Singkat:</label>
-              <input type="text" id="urlMediaTitle" class="form-control" placeholder="Contoh: Jadwal Pelayanan Loket Terpadu">
+              <input type="text" id="urlMediaTitle" class="form-control" placeholder="Contoh: Prakiraan Cuaca 40 Kecamatan Siaga 112">
+            </div>
+            <div class="form-group" id="groupWebDuration">
+              <label for="urlMediaDuration">Durasi Penayangan (Khusus Web):</label>
+              <select id="urlMediaDuration" class="form-control">
+                <option value="15000">15 Detik</option>
+                <option value="20000" selected>20 Detik (Rekomendasi Web)</option>
+                <option value="30000">30 Detik</option>
+                <option value="45000">45 Detik</option>
+                <option value="60000">60 Detik (1 Menit)</option>
+              </select>
             </div>
             <button type="submit" class="btn-primary full-width">Tambahkan ke Antrean Display</button>
           </form>
@@ -378,6 +414,24 @@
               <option value="10000">10 Detik</option>
               <option value="15000">15 Detik</option>
               <option value="20000">20 Detik (Santai)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Durasi Web -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <label for="settingWebDuration">Durasi Penayangan Halaman Web</label>
+            <span>Waktu tayang halaman web/cuaca sebelum slide berpindah</span>
+          </div>
+          <div class="setting-control">
+            <select id="settingWebDuration" class="form-control">
+              <option value="10000">10 Detik</option>
+              <option value="15000">15 Detik</option>
+              <option value="20000" selected>20 Detik (Rekomendasi Web)</option>
+              <option value="30000">30 Detik</option>
+              <option value="45000">45 Detik</option>
+              <option value="60000">60 Detik (1 Menit)</option>
             </select>
           </div>
         </div>

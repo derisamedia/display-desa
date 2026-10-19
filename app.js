@@ -41,6 +41,14 @@ const DEFAULT_MEDIA = [
     src: 'media/sample-video-pelayanan.mp4',
     title: 'Video Display Informasi Layanan Publik',
     desc: 'Tayangan video profil edukasi dan panduan informasi digital'
+  },
+  {
+    id: 'def-web-cuaca',
+    type: 'web',
+    src: 'https://siaga112.bogorkab.go.id/cuaca-kecamatan',
+    title: 'Prakiraan Cuaca 40 Kecamatan',
+    desc: 'Live Cuaca BMKG Kabupaten Bogor • Portal Siaga 112',
+    duration: 20000
   }
 ];
 
@@ -216,6 +224,7 @@ const state = {
   fitMode: 'contain', // Default Fit Penuh (contain) agar seluruh gambar dan teks poster terlihat utuh
   aspectRatio: 'full', // Default true edge-to-edge fullscreen
   slideDuration: 7000, // milliseconds for image
+  webSlideDuration: 20000, // milliseconds for web page / iframe
   transitionEffect: 'fade', // 'fade', 'zoom', 'slide'
   activeView: 'slideshow', // 'slideshow' or 'grid'
   galleryFilter: 'all',
@@ -292,6 +301,7 @@ const elements = {
   iconSidePause: document.getElementById('iconSidePause'),
   btnSideFit: document.getElementById('btnSideFit'),
   sideFitCaption: document.getElementById('sideFitCaption'),
+  btnSideOpenWeb: document.getElementById('btnSideOpenWeb'),
 
   // Aspect Ratio Buttons
   btnRatio916: document.getElementById('btnRatio916'),
@@ -316,12 +326,16 @@ const elements = {
   urlType: document.getElementById('urlType'),
   urlMediaLink: document.getElementById('urlMediaLink'),
   urlMediaTitle: document.getElementById('urlMediaTitle'),
+  urlMediaDuration: document.getElementById('urlMediaDuration'),
+  groupWebDuration: document.getElementById('groupWebDuration'),
+  btnApplyCuacaPreset: document.getElementById('btnApplyCuacaPreset'),
 
   settingsModal: document.getElementById('settingsModal'),
   btnOpenSettings: document.getElementById('btnOpenSettings'),
   btnCloseSettings: document.getElementById('btnCloseSettings'),
   settingsBackdrop: document.getElementById('settingsBackdrop'),
   settingDuration: document.getElementById('settingDuration'),
+  settingWebDuration: document.getElementById('settingWebDuration'),
   settingTransition: document.getElementById('settingTransition'),
   settingFitMode: document.getElementById('settingFitMode'),
   toggleTickerSwitch: document.getElementById('toggleTickerSwitch'),
@@ -347,6 +361,7 @@ const elements = {
   countAll: document.getElementById('countAll'),
   countPhotos: document.getElementById('countPhotos'),
   countVideos: document.getElementById('countVideos'),
+  countWeb: document.getElementById('countWeb'),
 
   // Toast
   toastNotification: document.getElementById('toastNotification'),
@@ -621,6 +636,9 @@ function loadStoredPreferences() {
     const dur = localStorage.getItem('display_duration');
     if (dur) state.slideDuration = parseInt(dur, 10);
 
+    const webDur = localStorage.getItem('display_web_duration');
+    if (webDur) state.webSlideDuration = parseInt(webDur, 10);
+
     const trans = localStorage.getItem('display_transition');
     if (trans) state.transitionEffect = trans;
 
@@ -643,6 +661,7 @@ function loadStoredPreferences() {
 
     // Sync input controls
     if (elements.settingDuration) elements.settingDuration.value = state.slideDuration;
+    if (elements.settingWebDuration) elements.settingWebDuration.value = state.webSlideDuration;
     if (elements.settingTransition) elements.settingTransition.value = state.transitionEffect;
     if (elements.settingFitMode) elements.settingFitMode.value = state.fitMode;
     if (elements.toggleTickerSwitch) elements.toggleTickerSwitch.checked = state.showTicker;
@@ -740,6 +759,8 @@ function renderSlide(index) {
   if (elements.ambientMedia) {
     if (item.type === 'video') {
       elements.ambientMedia.style.backgroundImage = `url('media/847287402_18109332539213351_4384306797872519912_n.jpg')`;
+    } else if (item.type === 'web') {
+      elements.ambientMedia.style.backgroundImage = `linear-gradient(135deg, #0284c7 0%, #0f172a 50%, #047857 100%)`;
     } else {
       elements.ambientMedia.style.backgroundImage = `url('${resolvedSrc}')`;
     }
@@ -813,6 +834,45 @@ function renderSlide(index) {
 
     videoWrapper.appendChild(video);
     slideEl.appendChild(videoWrapper);
+  } else if (item.type === 'web') {
+    // Web Page / Dashboard Iframe element
+    const webWrapper = document.createElement('div');
+    webWrapper.className = 'web-media-wrapper';
+
+    const loadingSpinner = document.createElement('div');
+    loadingSpinner.className = 'web-loading-indicator';
+    loadingSpinner.innerHTML = `
+      <div class="web-spinner"></div>
+      <div class="web-loading-text">Memuat Tampilan Web...</div>
+      <div class="web-loading-sub">${item.title || resolvedSrc}</div>
+    `;
+    webWrapper.appendChild(loadingSpinner);
+
+    const iframe = document.createElement('iframe');
+    iframe.src = resolvedSrc;
+    iframe.title = item.title || 'Web Display';
+    iframe.className = 'slide-media web-media-iframe';
+    iframe.setAttribute('allow', 'fullscreen; autoplay');
+    iframe.setAttribute('loading', 'eager');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+
+    iframe.onload = () => {
+      loadingSpinner.style.opacity = '0';
+      setTimeout(() => {
+        if (loadingSpinner.parentNode) loadingSpinner.remove();
+      }, 350);
+    };
+
+    iframe.onerror = () => {
+      loadingSpinner.innerHTML = `
+        <div class="web-loading-text" style="color: var(--accent-rose);">Halaman Web Tidak Dapat Dimuat Langsung</div>
+        <div class="web-loading-sub">${resolvedSrc}</div>
+        <a href="${resolvedSrc}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="margin-top: 10px; display: inline-block;">Buka di Tab Baru</a>
+      `;
+    };
+
+    webWrapper.appendChild(iframe);
+    slideEl.appendChild(webWrapper);
   } else {
     // Image element
     const img = document.createElement('img');
@@ -857,16 +917,26 @@ function updateSlideMetadata(item, index) {
   elements.counterTotal.textContent = String(state.media.length).padStart(2, '0');
 
   if (item.type === 'video') {
-    elements.currentTypePill.className = 'media-type-pill type-video';
+    elements.currentTypePill.className = 'reels-type-badge type-video';
     elements.currentTypeName.textContent = 'VIDEO';
     elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
     elements.btnToggleMute.classList.remove('hidden');
+    if (elements.btnSideOpenWeb) elements.btnSideOpenWeb.classList.add('hidden');
+  } else if (item.type === 'web') {
+    elements.currentTypePill.className = 'reels-type-badge type-web';
+    elements.currentTypeName.textContent = 'WEB';
+    elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+    elements.btnToggleMute.classList.add('hidden');
+    if (elements.btnSideOpenWeb) {
+      elements.btnSideOpenWeb.classList.remove('hidden');
+      elements.btnSideOpenWeb.href = resolveMediaPath(item.src);
+    }
   } else {
-    elements.currentTypePill.className = 'media-type-pill';
+    elements.currentTypePill.className = 'reels-type-badge';
     elements.currentTypeName.textContent = 'FOTO';
     elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
-    // Hide mute button if not a video
     elements.btnToggleMute.classList.add('hidden');
+    if (elements.btnSideOpenWeb) elements.btnSideOpenWeb.classList.add('hidden');
   }
 }
 
@@ -885,16 +955,22 @@ function startSlideTimer() {
     return;
   }
 
+  // Duration for current item:
+  // Can be item-specific (item.duration), or if web -> state.webSlideDuration, else state.slideDuration
+  const itemDuration = (currentItem && currentItem.duration)
+    ? currentItem.duration
+    : (currentItem && currentItem.type === 'web' ? (state.webSlideDuration || 20000) : state.slideDuration);
+
   state.slideStartTime = performance.now();
 
   function progressLoop(now) {
     if (!state.isPlaying) return;
     const elapsed = now - state.slideStartTime;
-    const progress = Math.min((elapsed / state.slideDuration) * 100, 100);
+    const progress = Math.min((elapsed / itemDuration) * 100, 100);
     elements.slideTimerFill.style.width = `${progress}%`;
     updateStoryBars(progress);
 
-    if (elapsed >= state.slideDuration) {
+    if (elapsed >= itemDuration) {
       nextSlide();
     } else {
       state.rafId = requestAnimationFrame(progressLoop);
@@ -1076,6 +1152,30 @@ function renderGalleryGrid() {
           </div>
         </div>
       `;
+    } else if (item.type === 'web') {
+      const cleanUrl = resolvedSrc.replace(/^https?:\/\//, '');
+      thumbHtml = `
+        <div class="card-thumb-wrapper">
+          <div class="card-thumb card-thumb-web">
+            <div class="web-mockup-bar">
+              <span class="web-mockup-dots"><i></i><i></i><i></i></span>
+              <span class="web-mockup-url">${cleanUrl}</span>
+            </div>
+            <div class="web-mockup-content">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" style="color: var(--accent-cyan);"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              <div class="web-mockup-title">${item.title}</div>
+              <div class="web-mockup-badge">LIVE WEB DASHBOARD</div>
+            </div>
+          </div>
+          <div class="card-type-tag tag-web">
+            <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            WEB
+          </div>
+          <div class="card-play-overlay">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+        </div>
+      `;
     } else {
       thumbHtml = `
         <div class="card-thumb-wrapper">
@@ -1111,10 +1211,12 @@ function updateMediaCounters() {
   const allCount = state.media.length;
   const photoCount = state.media.filter(m => m.type === 'image').length;
   const videoCount = state.media.filter(m => m.type === 'video').length;
+  const webCount = state.media.filter(m => m.type === 'web').length;
 
   if (elements.countAll) elements.countAll.textContent = allCount;
   if (elements.countPhotos) elements.countPhotos.textContent = photoCount;
   if (elements.countVideos) elements.countVideos.textContent = videoCount;
+  if (elements.countWeb) elements.countWeb.textContent = webCount;
   if (elements.settingsMediaCount) elements.settingsMediaCount.textContent = `${allCount} Item`;
 }
 
@@ -1155,6 +1257,19 @@ function renderLightboxItem() {
       if (!video.src.includes('media/' + fn)) video.src = 'media/' + fn;
     };
     elements.lightboxContentBox.appendChild(video);
+  } else if (item.type === 'web') {
+    const webContainer = document.createElement('div');
+    webContainer.className = 'lightbox-web-container';
+    webContainer.innerHTML = `
+      <div class="lightbox-web-toolbar">
+        <span class="web-url-text">${resolvedSrc}</span>
+        <a href="${resolvedSrc}" target="_blank" rel="noopener noreferrer" class="btn-subtle" style="font-size: 0.78rem;">
+          Buka Tab Baru ↗
+        </a>
+      </div>
+      <iframe src="${resolvedSrc}" class="lightbox-web-iframe" allow="fullscreen; autoplay"></iframe>
+    `;
+    elements.lightboxContentBox.appendChild(webContainer);
   } else {
     const img = document.createElement('img');
     img.src = resolvedSrc;
@@ -1222,7 +1337,8 @@ function handleUrlMediaSubmission(e) {
   e.preventDefault();
   const type = elements.urlType.value;
   const url = elements.urlMediaLink.value.trim();
-  const title = elements.urlMediaTitle.value.trim() || 'Media Tautan Web';
+  const title = elements.urlMediaTitle.value.trim() || (type === 'web' ? 'Halaman Web Display' : 'Media Tautan Web');
+  const duration = (type === 'web' && elements.urlMediaDuration) ? parseInt(elements.urlMediaDuration.value, 10) : undefined;
 
   if (!url) return;
 
@@ -1231,8 +1347,11 @@ function handleUrlMediaSubmission(e) {
     type: type,
     src: url,
     title: title,
-    desc: 'Tautan media online'
+    desc: type === 'web' ? 'Tautan live web dashboard' : 'Tautan media online'
   };
+  if (duration) {
+    newItem.duration = duration;
+  }
 
   state.media.push(newItem);
   saveMediaToDB(state.media);
@@ -1243,7 +1362,7 @@ function handleUrlMediaSubmission(e) {
   elements.urlMediaLink.value = '';
   elements.urlMediaTitle.value = '';
   closeAddMediaModal();
-  showToast('Media baru berhasil ditambahkan ke display!');
+  showToast(`${type === 'web' ? 'Halaman Web' : 'Media'} baru berhasil ditambahkan ke display!`);
 }
 
 function openAddMediaModal() {
@@ -1273,16 +1392,30 @@ function renderSettingsMediaList() {
     row.className = 'settings-media-item';
 
     const resolvedSrc = resolveMediaPath(item.src);
-    const thumbSrc = item.type === 'video' ? 'media/847287402_18109332539213351_4384306797872519912_n.jpg' : resolvedSrc;
+    const isVideo = item.type === 'video';
+    const isWeb = item.type === 'web';
+    
+    let thumbHtml = '';
+    if (isWeb) {
+      thumbHtml = `<div class="settings-media-thumb settings-web-thumb">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      </div>`;
+    } else {
+      const thumbSrc = isVideo ? 'media/847287402_18109332539213351_4384306797872519912_n.jpg' : resolvedSrc;
+      thumbHtml = `<img class="settings-media-thumb" src="${thumbSrc}" alt="thumb" onerror="const f=this.getAttribute('src').split('/').pop();if(!this.src.includes('media/'+f))this.src='media/'+f;">`;
+    }
+
+    const typeColor = isWeb ? 'var(--accent-cyan)' : (isVideo ? 'var(--accent-amber)' : 'var(--accent-emerald)');
+    const typeLabel = isWeb ? 'WEB / IFRAME' : item.type.toUpperCase();
 
     row.innerHTML = `
       <div class="settings-media-left">
         <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.75rem;">${idx + 1}.</span>
-        <img class="settings-media-thumb" src="${thumbSrc}" alt="thumb" onerror="const f=this.getAttribute('src').split('/').pop();if(!this.src.includes('media/'+f))this.src='media/'+f;">
+        ${thumbHtml}
         <div style="overflow: hidden;">
           <div class="settings-media-title">${item.title}</div>
-          <div style="font-size: 0.7rem; color: ${item.type === 'video' ? 'var(--accent-amber)' : 'var(--accent-cyan)'}">
-            ${item.type.toUpperCase()}
+          <div style="font-size: 0.7rem; color: ${typeColor}; font-weight: 600;">
+            ${typeLabel} ${item.duration ? `• ${(item.duration/1000)}s` : ''}
           </div>
         </div>
       </div>
@@ -1334,6 +1467,12 @@ function saveSettings() {
   // Save slide duration
   state.slideDuration = parseInt(elements.settingDuration.value, 10);
   localStorage.setItem('display_duration', state.slideDuration);
+
+  // Save web slide duration
+  if (elements.settingWebDuration) {
+    state.webSlideDuration = parseInt(elements.settingWebDuration.value, 10);
+    localStorage.setItem('display_web_duration', state.webSlideDuration);
+  }
 
   // Save transition
   state.transitionEffect = elements.settingTransition.value;
@@ -1592,6 +1731,31 @@ function initEventListeners() {
   });
 
   elements.urlMediaForm.addEventListener('submit', handleUrlMediaSubmission);
+
+  // URL Type Switcher: toggle Web duration group
+  if (elements.urlType && elements.groupWebDuration) {
+    elements.urlType.addEventListener('change', () => {
+      if (elements.urlType.value === 'web') {
+        elements.groupWebDuration.classList.remove('hidden');
+        elements.urlMediaLink.placeholder = 'https://siaga112.bogorkab.go.id/cuaca-kecamatan';
+      } else {
+        elements.groupWebDuration.classList.add('hidden');
+        elements.urlMediaLink.placeholder = elements.urlType.value === 'video' ? 'https://example.com/video.mp4' : 'https://example.com/banner.jpg';
+      }
+    });
+  }
+
+  // Quick Preset: Pasang Cuaca 112 Bogor
+  if (elements.btnApplyCuacaPreset) {
+    elements.btnApplyCuacaPreset.addEventListener('click', () => {
+      elements.urlType.value = 'web';
+      elements.urlMediaLink.value = 'https://siaga112.bogorkab.go.id/cuaca-kecamatan';
+      elements.urlMediaTitle.value = 'Prakiraan Cuaca 40 Kecamatan (Siaga 112 Kab. Bogor)';
+      if (elements.urlMediaDuration) elements.urlMediaDuration.value = '20000';
+      if (elements.groupWebDuration) elements.groupWebDuration.classList.remove('hidden');
+      showToast('⚡ Preset Cuaca 112 terisi! Klik tombol "Tambahkan".');
+    });
+  }
 
   // Settings
   elements.btnOpenSettings.addEventListener('click', openSettingsModal);

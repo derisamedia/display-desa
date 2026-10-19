@@ -1,5 +1,5 @@
 // Auto-generated media manifest
-// Generated at: 2026-10-14T09:27:43.459Z
+// Generated at: 2026-10-19T03:41:44.509Z
 window.__MEDIA_MANIFEST__ = [
   {
     "id": "media-3834373238",
@@ -40,16 +40,6 @@ window.__MEDIA_MANIFEST__ = [
     "desc": "Informasi hak sanggah dan peninjauan kesejahteraan masyarakat",
     "size": 484281,
     "updatedAt": 1791939517176.851
-  },
-  {
-    "id": "media-73616d706c",
-    "filename": "sample-video-pelayanan.mp4",
-    "type": "video",
-    "src": "media/sample-video-pelayanan.mp4",
-    "title": "Video Display Informasi Layanan Publik",
-    "desc": "Tayangan video profil edukasi dan panduan informasi digital",
-    "size": 1128375,
-    "updatedAt": 1791941182558.6714
   },
   {
     "id": "media-5768617473",
