@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 
 const PORT = 3000;
 const MEDIA_DIR = path.join(__dirname, 'media');
@@ -25,8 +26,12 @@ const KNOWN_METADATA = {
     title: 'Hasil Perlinsos Belum Sesuai Kondisi Kamu?',
     desc: 'Informasi hak sanggah dan peninjauan kesejahteraan masyarakat'
   },
-  'sample-video-pelayanan.mp4': {
-    title: 'Video Display Informasi Layanan Publik',
+  'snapgram.io_oe949efymsiu.mp4': {
+    title: 'Video Display Informasi Layanan Publik 1',
+    desc: 'Tayangan video profil edukasi dan panduan informasi digital'
+  },
+  'snapgram.io_svfnjhtqwfju.mp4': {
+    title: 'Video Display Informasi Layanan Publik 2',
     desc: 'Tayangan video profil edukasi dan panduan informasi digital'
   }
 };
@@ -40,6 +45,10 @@ function formatTitleFromFilename(filename) {
   
   if (/^\d+$/.test(base)) {
     return `Poster Layanan #${base}`;
+  }
+
+  if (base.toLowerCase().includes('snapgram')) {
+    return 'Video Layanan Publik';
   }
 
   // If it's a social media / numeric hash filename (like 847287402_181093325...), use default name
@@ -79,7 +88,7 @@ function scanMediaFiles() {
     const desc = meta.desc || (isVideo ? 'Video informasi display' : 'Foto poster display informasi');
 
     items.push({
-      id: 'media-' + Buffer.from(file).toString('hex').slice(0, 10),
+      id: 'media-' + crypto.createHash('md5').update(file).digest('hex').slice(0, 12),
       filename: file,
       type: isVideo ? 'video' : 'image',
       src: 'media/' + file,

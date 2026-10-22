@@ -36,10 +36,17 @@ const DEFAULT_MEDIA = [
     desc: 'Informasi hak sanggah dan peninjauan kesejahteraan masyarakat'
   },
   {
-    id: 'def-5',
+    id: 'def-video-1',
     type: 'video',
-    src: 'media/sample-video-pelayanan.mp4',
-    title: 'Video Display Informasi Layanan Publik',
+    src: 'media/snapgram.io_oe949efymsiu.mp4',
+    title: 'Video Display Informasi Layanan Publik 1',
+    desc: 'Tayangan video profil edukasi dan panduan informasi digital'
+  },
+  {
+    id: 'def-video-2',
+    type: 'video',
+    src: 'media/snapgram.io_svfnjhtqwfju.mp4',
+    title: 'Video Display Informasi Layanan Publik 2',
     desc: 'Tayangan video profil edukasi dan panduan informasi digital'
   },
   {
@@ -414,6 +421,9 @@ function formatMediaTitle(filename) {
   if (/^\d+$/.test(base)) {
     return `Poster Layanan #${base}`;
   }
+  if (base.toLowerCase().includes('snapgram')) {
+    return 'Video Layanan Publik';
+  }
   if (base.toLowerCase().startsWith('whatsapp image')) {
     return 'Foto Layanan • ' + base.replace(/^whatsapp image /i, '').replace(/ at /i, ' ');
   }
@@ -423,20 +433,22 @@ function formatMediaTitle(filename) {
   return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function syncMediaWithManifest(manifestItems) {
+function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
   if (!Array.isArray(manifestItems) || manifestItems.length === 0) return;
 
   const validSrcs = new Set(manifestItems.map(item => resolveMediaPath(item.src || ('media/' + (item.filename || '')))));
   const originalCount = state.media.length;
 
-  // 1. Remove deleted files (only local media/ files, preserving user uploads and web URLs)
-  state.media = state.media.filter(item => {
-    const src = resolveMediaPath(item.src);
-    if (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
-      return true;
-    }
-    return validSrcs.has(src);
-  });
+  // 1. Remove deleted files (only if this is a complete manifest sync, not a partial discovery)
+  if (!allowPartialMerge) {
+    state.media = state.media.filter(item => {
+      const src = resolveMediaPath(item.src);
+      if (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
+        return true;
+      }
+      return validSrcs.has(src);
+    });
+  }
   const removedCount = originalCount - state.media.length;
 
   // 2. Add new files
@@ -447,9 +459,9 @@ function syncMediaWithManifest(manifestItems) {
     const filename = item.filename || (item.src ? item.src.split('/').pop() : '');
     const resolved = resolveMediaPath(item.src || ('media/' + filename));
     if (resolved && !currentSrcs.has(resolved)) {
-      const isVideo = item.type === 'video' || resolved.endsWith('.mp4') || resolved.endsWith('.webm');
+      const isVideo = item.type === 'video' || /\.(mp4|webm|ogg|mov)$/i.test(resolved);
       state.media.push({
-        id: item.id || ('auto-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
+        id: item.id || ('auto-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6)),
         type: isVideo ? 'video' : 'image',
         src: resolved,
         title: item.title || formatMediaTitle(filename),
@@ -475,7 +487,9 @@ function syncMediaWithManifest(manifestItems) {
   }
 }
 
-async function checkMediaFolderUpdates() {
+let hasCheckedGitHubApi = false;
+
+async function checkMediaFolderUpdates(isManualSync = false) {
   if (window.location.protocol.startsWith('http')) {
     // 1. Direct Live Server / Apache / Local HTTP Directory Listing Detection
     try {
@@ -494,7 +508,7 @@ async function checkMediaFolderUpdates() {
               seen.add(filename);
               const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(filename);
               discovered.push({
-                id: 'media-' + filename,
+                id: 'media-' + filename.replace(/[^a-zA-Z0-9_-]/g, '_'),
                 filename: filename,
                 src: 'media/' + filename,
                 type: isVideo ? 'video' : 'image',
@@ -517,12 +531,15 @@ async function checkMediaFolderUpdates() {
       if (res.ok) {
         const items = await res.json();
         syncMediaWithManifest(items);
-        return;
+        if (!window.location.hostname.endsWith('github.io')) {
+          return;
+        }
       }
     } catch (_) {}
 
-    // 3. GitHub API (when running on GitHub Pages)
-    if (window.location.hostname.endsWith('github.io')) {
+    // 3. GitHub API (when running on GitHub Pages: run once on initial load or on manual sync)
+    if (window.location.hostname.endsWith('github.io') && (!hasCheckedGitHubApi || isManualSync)) {
+      hasCheckedGitHubApi = true;
       try {
         const pathParts = window.location.pathname.split('/').filter(Boolean);
         const repo = pathParts[0];
@@ -533,11 +550,11 @@ async function checkMediaFolderUpdates() {
             const ghFiles = await ghRes.json();
             if (Array.isArray(ghFiles)) {
               const items = ghFiles
-                .filter(f => f.type === 'file' && /\.(jpg|jpeg|png|webp|gif|mp4|webm)$/i.test(f.name))
+                .filter(f => f.type === 'file' && /\.(jpg|jpeg|png|webp|gif|svg|bmp|mp4|webm|ogg|mov)$/i.test(f.name))
                 .map(f => {
-                  const isVideo = /\.(mp4|webm)$/i.test(f.name);
+                  const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(f.name);
                   return {
-                    id: 'media-' + f.name,
+                    id: 'media-' + f.name.replace(/[^a-zA-Z0-9_-]/g, '_'),
                     filename: f.name,
                     src: 'media/' + f.name,
                     type: isVideo ? 'video' : 'image',
@@ -546,7 +563,7 @@ async function checkMediaFolderUpdates() {
                   };
                 });
               if (items.length > 0) {
-                syncMediaWithManifest(items);
+                syncMediaWithManifest(items, true);
                 return;
               }
             }
@@ -612,7 +629,7 @@ function startLiveFolderSync() {
     btnSync.addEventListener('click', async () => {
       btnSync.disabled = true;
       btnSync.innerHTML = '🔄 Memindai Folder...';
-      await checkMediaFolderUpdates();
+      await checkMediaFolderUpdates(true);
       setTimeout(() => {
         btnSync.disabled = false;
         btnSync.innerHTML = '🔄 Sinkronkan Sekarang';
