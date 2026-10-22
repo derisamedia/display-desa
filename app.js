@@ -541,9 +541,9 @@ async function checkMediaFolderUpdates(isManualSync = false) {
     if (window.location.hostname.endsWith('github.io') && (!hasCheckedGitHubApi || isManualSync)) {
       hasCheckedGitHubApi = true;
       try {
-        const pathParts = window.location.pathname.split('/').filter(Boolean);
-        const repo = pathParts[0];
         const user = window.location.hostname.split('.')[0];
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const repo = pathParts[0] || `${user}.github.io`;
         if (user && repo) {
           const ghRes = await fetch(`https://api.github.com/repos/${user}/${repo}/contents/media?_t=${Date.now()}`, { cache: 'no-store' });
           if (ghRes.ok) {
