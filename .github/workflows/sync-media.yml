@@ -1,0 +1,36 @@
+name: Auto Sync Media Manifest
+
+on:
+  push:
+    paths:
+      - 'media/**'
+      - '!media/manifest.*'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Regenerate Media Manifest
+        run: node sync-media.js --once
+
+      - name: Commit and Push Updated Manifest
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add media/manifest.js media/manifest.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: auto-sync media manifest [skip ci]" && git push)

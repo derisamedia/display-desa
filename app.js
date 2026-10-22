@@ -163,21 +163,7 @@ async function loadSavedMedia() {
             return item;
           });
 
-          // Filter out any stale local media files that no longer exist in the media manifest
-          const validSrcs = new Set(baseDefaults.map(d => resolveMediaPath(d.src)));
-          const preFilterCount = items.length;
-          items = items.filter(item => {
-            const src = resolveMediaPath(item.src);
-            if (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
-              return true;
-            }
-            return validSrcs.has(src);
-          });
-          if (items.length !== preFilterCount) {
-            hasModifications = true;
-          }
-
-          // Merge any new files from manifest that aren't in IndexedDB yet
+          // Ensure all baseDefaults are present in items
           const existingSrcs = new Set(items.map(i => resolveMediaPath(i.src)));
           baseDefaults.forEach(def => {
             if (!existingSrcs.has(def.src)) {
@@ -439,8 +425,8 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
   const validSrcs = new Set(manifestItems.map(item => resolveMediaPath(item.src || ('media/' + (item.filename || '')))));
   const originalCount = state.media.length;
 
-  // 1. Remove deleted files (only if this is a complete manifest sync, not a partial discovery)
-  if (!allowPartialMerge) {
+  // 1. Remove deleted files (only if this is a complete manifest sync, not a partial discovery, and not on github.io)
+  if (!allowPartialMerge && !window.location.hostname.endsWith('github.io')) {
     state.media = state.media.filter(item => {
       const src = resolveMediaPath(item.src);
       if (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
