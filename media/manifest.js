@@ -1,5 +1,5 @@
 // Auto-generated media manifest
-// Generated at: 2026-11-23T01:22:31.808Z
+// Generated at: 2026-11-23T02:39:11.263Z
 window.__MEDIA_MANIFEST__ = [
   {
     "id": "media-d45ea87532c4",
@@ -9,7 +9,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Apa Yang Berbeda Dalam Perlinsos?",
     "desc": "Dua formulir sanggahan: Form Sanggah Singkat & Form DTSEN",
     "size": 551179,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 0
   },
   {
     "id": "media-efd9cfd273e6",
@@ -19,7 +20,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Data Kamu Tidak Sesuai?",
     "desc": "Panduan pengajuan sanggahan resmi melalui Portal Perlinsos",
     "size": 439607,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 1
   },
   {
     "id": "media-200a8c8d4435",
@@ -29,7 +31,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Bagaimana Mengetahui Apa Yang Perlu Disanggah?",
     "desc": "Cek alasan tidak layak dan periksa kesesuaian data kondisi sebenarnya",
     "size": 457035,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 2
   },
   {
     "id": "media-dff91c738c1d",
@@ -39,7 +42,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Hasil Perlinsos Belum Sesuai Kondisi Kamu?",
     "desc": "Informasi hak sanggah dan peninjauan kesejahteraan masyarakat",
     "size": 484281,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 3
   },
   {
     "id": "media-799346232139",
@@ -49,7 +53,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 1",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 5131596,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 4
   },
   {
     "id": "media-7b43dc8097ed",
@@ -59,7 +64,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 2",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 4836284,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 5
   },
   {
     "id": "media-1b0e521858fb",
@@ -69,7 +75,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 786980,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 6
   },
   {
     "id": "media-61952616dbaa",
@@ -79,7 +86,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 810589,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 7
   },
   {
     "id": "media-f85113ef0de4",
@@ -89,7 +97,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 906780,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 8
   },
   {
     "id": "media-5f24b7db73cb",
@@ -99,7 +108,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 1005705,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 9
   },
   {
     "id": "media-022c0d71e59b",
@@ -109,7 +119,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 119014,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 10
   },
   {
     "id": "media-13ccfb9f02f5",
@@ -119,7 +130,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 199979,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 11
   },
   {
     "id": "media-56a0c7632f04",
@@ -129,7 +141,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 540391,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 12
   },
   {
     "id": "media-9d781774a3f5",
@@ -139,7 +152,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 10131850,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 13
   },
   {
     "id": "media-c1501255c9bb",
@@ -149,7 +163,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 1875265,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 14
   },
   {
     "id": "media-8dd8fecad8e0",
@@ -159,7 +174,8 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 4894087,
-    "updatedAt": 1792631595000
+    "updatedAt": 1792631595000,
+    "order": 15
   }
 ];
 if (typeof window.__onMediaManifestUpdated === 'function') { window.__onMediaManifestUpdated(window.__MEDIA_MANIFEST__); }

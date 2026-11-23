@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body class="theme-obsidian">
 
@@ -505,7 +505,12 @@
         <!-- Kelola Urutan Media / Reset -->
         <div class="setting-section-header">
           <h4>Daftar & Urutan Media Display</h4>
-          <span class="badge" id="settingsMediaCount">5 Item</span>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" id="btnAutoSortMedia" class="btn-subtle" title="Urutkan media otomatis berdasarkan nomor / nama file">
+              ↕ Urutkan Otomatis
+            </button>
+            <span class="badge" id="settingsMediaCount">5 Item</span>
+          </div>
         </div>
         <div id="settingsMediaList" class="settings-media-list">
           <!-- Injected via JS -->
@@ -530,7 +535,7 @@
     <div class="toast-message" id="toastMessage">Pemberitahuan</div>
   </div>
 
-  <script id="manifestScript" src="media/manifest.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script id="manifestScript" src="media/manifest.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

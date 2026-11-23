@@ -203,6 +203,8 @@ async function loadSavedMedia() {
         let items = req.result;
         if (items && items.length > 0) {
           let hasModifications = false;
+          const hadExplicitOrder = items.every(item => typeof item.order === 'number');
+
           // Hydrate blobs & heal paths
           items = items
             .map(item => {
@@ -230,6 +232,24 @@ async function loadSavedMedia() {
             })
             .filter(Boolean);
 
+          // Fix IndexedDB getAll() alphabetical-by-id scrambling:
+          // Restore saved numeric `order`, or re-align legacy records to baseDefaults order
+          if (hadExplicitOrder && localStorage.getItem('display_custom_order') === 'true') {
+            items.sort((a, b) => a.order - b.order);
+          } else {
+            const defaultOrderMap = new Map(baseDefaults.map((d, idx) => [resolveMediaPath(d.src), idx]));
+            items.sort((a, b) => {
+              const ordA = defaultOrderMap.has(resolveMediaPath(a.src))
+                ? defaultOrderMap.get(resolveMediaPath(a.src))
+                : 10000 + (typeof a.order === 'number' ? a.order : 0);
+              const ordB = defaultOrderMap.has(resolveMediaPath(b.src))
+                ? defaultOrderMap.get(resolveMediaPath(b.src))
+                : 10000 + (typeof b.order === 'number' ? b.order : 0);
+              return ordA - ordB;
+            });
+            if (!hadExplicitOrder) hasModifications = true;
+          }
+
           // Ensure all non-deleted baseDefaults are present in items
           const existingSrcs = new Set(items.map(i => resolveMediaPath(i.src)));
           activeDefaults.forEach(def => {
@@ -246,12 +266,16 @@ async function loadSavedMedia() {
             hasModifications = true;
           }
 
+          // Normalize order indexes
+          items = items.map((item, idx) => ({ ...item, order: idx }));
+
           if (hasModifications) {
             saveMediaToDB(items);
           }
           resolve(items);
         } else {
-          const initial = activeDefaults.length > 0 ? activeDefaults : baseDefaults;
+          const initial = (activeDefaults.length > 0 ? activeDefaults : baseDefaults)
+            .map((item, idx) => ({ ...item, order: idx }));
           saveMediaToDB(initial);
           resolve(initial);
         }
@@ -271,10 +295,10 @@ async function saveMediaToDB(mediaList) {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       store.clear();
-      mediaList.forEach(item => {
+      mediaList.forEach((item, idx) => {
         const record = item.fileBlob instanceof Blob
-          ? { ...item, src: '' }
-          : item;
+          ? { ...item, src: '', order: idx }
+          : { ...item, order: idx };
         store.put(record);
       });
       tx.oncomplete = () => resolve(true);
@@ -416,6 +440,7 @@ const elements = {
   settingsMediaList: document.getElementById('settingsMediaList'),
   settingsMediaCount: document.getElementById('settingsMediaCount'),
   btnResetMedia: document.getElementById('btnResetMedia'),
+  btnAutoSortMedia: document.getElementById('btnAutoSortMedia'),
   btnSaveSettings: document.getElementById('btnSaveSettings'),
 
   // Lightbox
@@ -540,7 +565,30 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
     }
   });
 
-  if (addedCount > 0 || removedCount > 0) {
+  // 3. Keep local media aligned with manifest order unless user manually reordered
+  let orderChanged = false;
+  if (!allowPartialMerge && localStorage.getItem('display_custom_order') !== 'true') {
+    const manifestOrder = new Map(
+      manifestItems.map((item, idx) => [resolveMediaPath(item.src || ('media/' + (item.filename || ''))), idx])
+    );
+    const activeItemId = state.media[state.currentIndex]?.id;
+    const prevIds = state.media.map(m => m.id).join(',');
+    state.media.sort((a, b) => {
+      const ordA = manifestOrder.has(resolveMediaPath(a.src)) ? manifestOrder.get(resolveMediaPath(a.src)) : 10000;
+      const ordB = manifestOrder.has(resolveMediaPath(b.src)) ? manifestOrder.get(resolveMediaPath(b.src)) : 10000;
+      if (ordA !== ordB) return ordA - ordB;
+      return 0;
+    });
+    if (state.media.map(m => m.id).join(',') !== prevIds) {
+      orderChanged = true;
+      if (activeItemId) {
+        const newIdx = state.media.findIndex(m => m.id === activeItemId);
+        if (newIdx !== -1) state.currentIndex = newIdx;
+      }
+    }
+  }
+
+  if (addedCount > 0 || removedCount > 0 || orderChanged) {
     if (state.currentIndex >= state.media.length) {
       state.currentIndex = 0;
     }
@@ -1618,7 +1666,7 @@ function renderSettingsMediaList() {
 
     row.innerHTML = `
       <div class="settings-media-left">
-        <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.75rem;">${idx + 1}.</span>
+        <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.75rem; min-width: 22px;">${idx + 1}.</span>
         ${thumbHtml}
         <div style="overflow: hidden;">
           <div class="settings-media-title">${safeTitle}</div>
@@ -1627,13 +1675,28 @@ function renderSettingsMediaList() {
           </div>
         </div>
       </div>
-      <button class="settings-media-del-btn" title="Hapus dari display" data-id="${escapeHtml(item.id)}">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-      </button>
+      <div class="settings-media-actions">
+        <button class="settings-media-move-btn" data-dir="-1" title="Geser Naik" ${idx === 0 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <button class="settings-media-move-btn" data-dir="1" title="Geser Turun" ${idx === state.media.length - 1 ? 'disabled' : ''}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <button class="settings-media-del-btn" title="Hapus dari display" data-id="${escapeHtml(item.id)}">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
+      </div>
     `;
 
     const thumbImg = row.querySelector('img.settings-media-thumb');
     if (thumbImg) attachMediaFallback(thumbImg, thumbSrc);
+
+    row.querySelectorAll('.settings-media-move-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moveMediaItem(idx, parseInt(btn.dataset.dir, 10));
+      });
+    });
 
     row.querySelector('.settings-media-del-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1642,6 +1705,67 @@ function renderSettingsMediaList() {
 
     elements.settingsMediaList.appendChild(row);
   });
+}
+
+function moveMediaItem(fromIndex, delta) {
+  const toIndex = fromIndex + delta;
+  if (toIndex < 0 || toIndex >= state.media.length) return;
+
+  const activeItemId = state.media[state.currentIndex]?.id;
+  const [moved] = state.media.splice(fromIndex, 1);
+  state.media.splice(toIndex, 0, moved);
+  localStorage.setItem('display_custom_order', 'true');
+
+  if (activeItemId) {
+    const newIdx = state.media.findIndex(m => m.id === activeItemId);
+    if (newIdx !== -1) state.currentIndex = newIdx;
+  }
+
+  saveMediaToDB(state.media);
+  renderSettingsMediaList();
+  renderGalleryGrid();
+  renderStoryBars();
+  updateStoryBars(0);
+  if (state.media[state.currentIndex]) {
+    updateSlideMetadata(state.media[state.currentIndex], state.currentIndex);
+  }
+}
+
+function autoSortMediaList() {
+  localStorage.removeItem('display_custom_order');
+  const baseDefaults = getInitialMediaItems();
+  const defaultOrderMap = new Map(baseDefaults.map((d, idx) => [resolveMediaPath(d.src), idx]));
+  const activeItemId = state.media[state.currentIndex]?.id;
+
+  state.media.sort((a, b) => {
+    const srcA = resolveMediaPath(a.src);
+    const srcB = resolveMediaPath(b.src);
+    const hasA = defaultOrderMap.has(srcA);
+    const hasB = defaultOrderMap.has(srcB);
+    if (hasA && hasB) return defaultOrderMap.get(srcA) - defaultOrderMap.get(srcB);
+    if (hasA) return -1;
+    if (hasB) return 1;
+    if (a.type !== b.type) {
+      const rank = { image: 0, video: 1, web: 2 };
+      return (rank[a.type] ?? 3) - (rank[b.type] ?? 3);
+    }
+    return (a.title || srcA).localeCompare(b.title || srcB, 'id', { numeric: true, sensitivity: 'base' });
+  });
+
+  if (activeItemId) {
+    const newIdx = state.media.findIndex(m => m.id === activeItemId);
+    if (newIdx !== -1) state.currentIndex = newIdx;
+  }
+
+  saveMediaToDB(state.media);
+  renderSettingsMediaList();
+  renderGalleryGrid();
+  renderStoryBars();
+  updateStoryBars(0);
+  if (state.media[state.currentIndex]) {
+    updateSlideMetadata(state.media[state.currentIndex], state.currentIndex);
+  }
+  showToast('Urutan media dirapikan otomatis!');
 }
 
 function deleteMediaItem(id) {
@@ -1680,6 +1804,7 @@ function resetMediaToDefault() {
       if (m.src && m.src.startsWith('blob:')) URL.revokeObjectURL(m.src);
     });
     clearDeletedMediaSrcs();
+    localStorage.removeItem('display_custom_order');
     state.media = getInitialMediaItems();
     state.currentIndex = 0;
     saveMediaToDB(state.media);
@@ -2001,6 +2126,7 @@ function initEventListeners() {
   elements.btnCloseSettings.addEventListener('click', closeSettingsModal);
   elements.settingsBackdrop.addEventListener('click', closeSettingsModal);
   elements.btnResetMedia.addEventListener('click', resetMediaToDefault);
+  if (elements.btnAutoSortMedia) elements.btnAutoSortMedia.addEventListener('click', autoSortMediaList);
   elements.btnSaveSettings.addEventListener('click', saveSettings);
 
   // Lightbox

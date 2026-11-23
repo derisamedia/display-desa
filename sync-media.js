@@ -71,8 +71,9 @@ function scanMediaFiles() {
   const files = fs.readdirSync(MEDIA_DIR);
   const items = [];
 
+  // Ignore order.json when scanning media files
   for (const file of files) {
-    if (file === 'manifest.json' || file === 'manifest.js' || file.startsWith('.') || file.startsWith('~$')) continue;
+    if (file === 'manifest.json' || file === 'manifest.js' || file === 'order.json' || file.startsWith('.') || file.startsWith('~$')) continue;
 
     const ext = path.extname(file).toLowerCase();
     const isImage = IMAGE_EXTENSIONS.has(ext);
@@ -105,15 +106,56 @@ function scanMediaFiles() {
     });
   }
 
-  // Sort: Known defaults first (in original order), then other files by modification time
+  // Deterministic sorting:
+  // 1. Custom order from media/order.json (if present)
+  // 2. Files with leading sequence numbers (e.g. 01_..., 1.jpg, 02-video.mp4) in numeric order
+  // 3. Curated KNOWN_METADATA items in defined order
+  // 4. Remaining images (natural A-Z / numeric sort), then remaining videos (natural A-Z / numeric sort)
+  let customOrder = [];
+  const orderFilePath = path.join(MEDIA_DIR, 'order.json');
+  if (fs.existsSync(orderFilePath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(orderFilePath, 'utf-8'));
+      if (Array.isArray(parsed)) customOrder = parsed;
+    } catch (_) {}
+  }
+
+  const getSeqNum = (filename) => {
+    const m = /^(\d{1,3})(?:[\s._-]|$)/.exec(filename);
+    return m ? parseInt(m[1], 10) : null;
+  };
+
   const defaultKeys = Object.keys(KNOWN_METADATA);
   items.sort((a, b) => {
+    const custA = customOrder.indexOf(a.filename);
+    const custB = customOrder.indexOf(b.filename);
+    if (custA !== -1 && custB !== -1) return custA - custB;
+    if (custA !== -1) return -1;
+    if (custB !== -1) return 1;
+
+    const seqA = getSeqNum(a.filename);
+    const seqB = getSeqNum(b.filename);
+    if (seqA !== null && seqB !== null) {
+      if (seqA !== seqB) return seqA - seqB;
+      return a.filename.localeCompare(b.filename, 'id', { numeric: true, sensitivity: 'base' });
+    }
+    if (seqA !== null) return -1;
+    if (seqB !== null) return 1;
+
     const idxA = defaultKeys.indexOf(a.filename);
     const idxB = defaultKeys.indexOf(b.filename);
     if (idxA !== -1 && idxB !== -1) return idxA - idxB;
     if (idxA !== -1) return -1;
     if (idxB !== -1) return 1;
-    return b.updatedAt - a.updatedAt;
+
+    if (a.type !== b.type) {
+      return a.type === 'image' ? -1 : 1;
+    }
+    return a.filename.localeCompare(b.filename, 'id', { numeric: true, sensitivity: 'base' });
+  });
+
+  items.forEach((item, index) => {
+    item.order = index;
   });
 
   return items;
