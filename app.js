@@ -60,8 +60,36 @@ const DEFAULT_MEDIA = [
 ];
 
 // ===================================================================
-// MEDIA PATH RESOLVER & AUTO-HEAL
+// MEDIA PATH RESOLVER, SANITIZERS & DELETED-ITEM TRACKING
 // ===================================================================
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function isSafeHttpUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (_) {
+    return false;
+  }
+}
+
+function encodeMediaUrl(src) {
+  if (!src) return '';
+  if (src.startsWith('data:') || src.startsWith('blob:')) return src;
+  try {
+    return encodeURI(decodeURI(src));
+  } catch (_) {
+    return encodeURI(src);
+  }
+}
+
 function resolveMediaPath(src) {
   if (!src) return '';
   if (
@@ -77,6 +105,33 @@ function resolveMediaPath(src) {
     clean = 'media/' + clean;
   }
   return clean;
+}
+
+const DELETED_SRCS_KEY = 'display_deleted_srcs';
+
+function getDeletedMediaSrcs() {
+  try {
+    const raw = localStorage.getItem(DELETED_SRCS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr : []);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function addDeletedMediaSrc(src) {
+  if (!src || src.startsWith('data:') || src.startsWith('blob:')) return;
+  try {
+    const set = getDeletedMediaSrcs();
+    set.add(resolveMediaPath(src));
+    localStorage.setItem(DELETED_SRCS_KEY, JSON.stringify([...set]));
+  } catch (_) {}
+}
+
+function clearDeletedMediaSrcs() {
+  try {
+    localStorage.removeItem(DELETED_SRCS_KEY);
+  } catch (_) {}
 }
 
 // ===================================================================
@@ -135,6 +190,9 @@ function getInitialMediaItems() {
 
 async function loadSavedMedia() {
   const baseDefaults = getInitialMediaItems();
+  const deletedSrcs = getDeletedMediaSrcs();
+  const activeDefaults = baseDefaults.filter(def => !deletedSrcs.has(resolveMediaPath(def.src)));
+
   try {
     const db = await openDatabase();
     return new Promise((resolve) => {
@@ -145,27 +203,36 @@ async function loadSavedMedia() {
         let items = req.result;
         if (items && items.length > 0) {
           let hasModifications = false;
-          // Heal paths
-          items = items.map(item => {
-            const defItem = baseDefaults.find(d => d.id === item.id || d.src === item.src);
-            if (defItem) {
-              if (item.src !== defItem.src) {
+          // Hydrate blobs & heal paths
+          items = items
+            .map(item => {
+              if (item.fileBlob instanceof Blob) {
+                return { ...item, src: URL.createObjectURL(item.fileBlob) };
+              }
+              if (typeof item.src === 'string' && item.src.startsWith('blob:')) {
                 hasModifications = true;
-                return { ...item, src: defItem.src };
+                return null;
+              }
+              const defItem = baseDefaults.find(d => d.id === item.id || d.src === item.src);
+              if (defItem) {
+                if (item.src !== defItem.src) {
+                  hasModifications = true;
+                  return { ...item, src: defItem.src };
+                }
+                return item;
+              }
+              const resolved = resolveMediaPath(item.src);
+              if (resolved !== item.src) {
+                hasModifications = true;
+                return { ...item, src: resolved };
               }
               return item;
-            }
-            const resolved = resolveMediaPath(item.src);
-            if (resolved !== item.src) {
-              hasModifications = true;
-              return { ...item, src: resolved };
-            }
-            return item;
-          });
+            })
+            .filter(Boolean);
 
-          // Ensure all baseDefaults are present in items
+          // Ensure all non-deleted baseDefaults are present in items
           const existingSrcs = new Set(items.map(i => resolveMediaPath(i.src)));
-          baseDefaults.forEach(def => {
+          activeDefaults.forEach(def => {
             if (!existingSrcs.has(def.src)) {
               items.push(def);
               existingSrcs.add(def.src);
@@ -173,20 +240,27 @@ async function loadSavedMedia() {
             }
           });
 
+          if (items.length === 0) {
+            items = [...baseDefaults];
+            clearDeletedMediaSrcs();
+            hasModifications = true;
+          }
+
           if (hasModifications) {
             saveMediaToDB(items);
           }
           resolve(items);
         } else {
-          saveMediaToDB(baseDefaults);
-          resolve(baseDefaults);
+          const initial = activeDefaults.length > 0 ? activeDefaults : baseDefaults;
+          saveMediaToDB(initial);
+          resolve(initial);
         }
       };
-      req.onerror = () => resolve(baseDefaults);
+      req.onerror = () => resolve(activeDefaults.length > 0 ? activeDefaults : baseDefaults);
     });
   } catch (err) {
     console.warn('IndexedDB not available, fallback to defaults:', err);
-    return baseDefaults;
+    return activeDefaults.length > 0 ? activeDefaults : baseDefaults;
   }
 }
 
@@ -197,7 +271,12 @@ async function saveMediaToDB(mediaList) {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       store.clear();
-      mediaList.forEach(item => store.put(item));
+      mediaList.forEach(item => {
+        const record = item.fileBlob instanceof Blob
+          ? { ...item, src: '' }
+          : item;
+        store.put(record);
+      });
       tx.oncomplete = () => resolve(true);
       tx.onerror = () => reject(tx.error);
     });
@@ -367,20 +446,22 @@ const elements = {
 async function initApp() {
   loadStoredPreferences();
   state.media = await loadSavedMedia();
-  
+
   // Guarantee all items have proper resolved media/ paths
   if (state.media && state.media.length > 0) {
     state.media = state.media.map(item => {
+      if (item.fileBlob instanceof Blob) return item;
       const def = DEFAULT_MEDIA.find(d => d.id === item.id);
       if (def) return { ...item, src: def.src };
       return { ...item, src: resolveMediaPath(item.src) };
     });
     saveMediaToDB(state.media);
   }
-  
+
   initClock();
   renderStoryBars();
   applyAspectRatio();
+  syncMuteUI();
   initSlideshow();
   initGalleryGrid();
   initAutoHud();
@@ -423,13 +504,14 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
   if (!Array.isArray(manifestItems) || manifestItems.length === 0) return;
 
   const validSrcs = new Set(manifestItems.map(item => resolveMediaPath(item.src || ('media/' + (item.filename || '')))));
+  const deletedSrcs = getDeletedMediaSrcs();
   const originalCount = state.media.length;
 
   // 1. Remove deleted files (only if this is a complete manifest sync, not a partial discovery, and not on github.io)
   if (!allowPartialMerge && !window.location.hostname.endsWith('github.io')) {
     state.media = state.media.filter(item => {
       const src = resolveMediaPath(item.src);
-      if (src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
+      if (item.fileBlob instanceof Blob || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
         return true;
       }
       return validSrcs.has(src);
@@ -437,17 +519,17 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
   }
   const removedCount = originalCount - state.media.length;
 
-  // 2. Add new files
+  // 2. Add new files (skip items explicitly deleted by user)
   let addedCount = 0;
   const currentSrcs = new Set(state.media.map(m => resolveMediaPath(m.src)));
 
   manifestItems.forEach(item => {
     const filename = item.filename || (item.src ? item.src.split('/').pop() : '');
     const resolved = resolveMediaPath(item.src || ('media/' + filename));
-    if (resolved && !currentSrcs.has(resolved)) {
+    if (resolved && !currentSrcs.has(resolved) && !deletedSrcs.has(resolved)) {
       const isVideo = item.type === 'video' || /\.(mp4|webm|ogg|mov)$/i.test(resolved);
       state.media.push({
-        id: item.id || ('auto-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6)),
+        id: item.id || ('auto-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)),
         type: isVideo ? 'video' : 'image',
         src: resolved,
         title: item.title || formatMediaTitle(filename),
@@ -464,6 +546,7 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
     }
     saveMediaToDB(state.media);
     renderStoryBars();
+    updateStoryBars(0);
     renderGalleryGrid();
     renderSettingsMediaList();
     updateMediaCounters();
@@ -474,57 +557,95 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
 }
 
 let hasCheckedGitHubApi = false;
+let dirListingSupported = null; // null = unknown, true/false after probe
+let apiMediaSupported = null;
 
 async function checkMediaFolderUpdates(isManualSync = false) {
   if (window.location.protocol.startsWith('http')) {
-    // 1. Direct Live Server / Apache / Local HTTP Directory Listing Detection
-    try {
-      const dirRes = await fetch(`media/?_t=${Date.now()}`, { cache: 'no-store' });
-      if (dirRes.ok) {
-        const text = await dirRes.text();
-        if (text.includes('<html') || text.includes('href=')) {
-          const regex = /href=["']([^"']+\.(jpg|jpeg|png|webp|gif|svg|bmp|mp4|webm|ogg|mov))["']/gi;
-          let match;
-          const discovered = [];
-          const seen = new Set();
-          while ((match = regex.exec(text)) !== null) {
-            const raw = match[1].split('?')[0].split('#')[0];
-            const filename = decodeURIComponent(raw.split('/').pop().split('\\').pop());
-            if (filename && !seen.has(filename) && filename !== '..' && filename !== '.') {
-              seen.add(filename);
-              const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(filename);
-              discovered.push({
-                id: 'media-' + filename.replace(/[^a-zA-Z0-9_-]/g, '_'),
-                filename: filename,
-                src: 'media/' + filename,
-                type: isVideo ? 'video' : 'image',
-                title: formatMediaTitle(filename),
-                desc: isVideo ? 'Video informasi display' : 'Foto poster display informasi'
-              });
-            }
-          }
-          if (discovered.length > 0) {
-            syncMediaWithManifest(discovered);
+    const isGitHubPages = window.location.hostname.endsWith('github.io');
+
+    // 1. Live /api/media endpoint (local sync-media.js server or Vercel serverless)
+    if (!isGitHubPages && (apiMediaSupported !== false || isManualSync)) {
+      try {
+        const apiRes = await fetch(`api/media?_t=${Date.now()}`, { cache: 'no-store' });
+        if (apiRes.ok) {
+          const items = await apiRes.json();
+          if (Array.isArray(items)) {
+            apiMediaSupported = true;
+            syncMediaWithManifest(items);
             return;
           }
+        } else if (apiRes.status === 404 || apiRes.status === 405) {
+          apiMediaSupported = false;
         }
+      } catch (_) {
+        if (!isManualSync) apiMediaSupported = false;
       }
-    } catch (_) {}
+    }
 
-    // 2. Try manifest.json
+    // 2. Direct Live Server / Apache / Local HTTP Directory Listing Detection (only probe if supported)
+    if (!isGitHubPages && (dirListingSupported !== false || isManualSync)) {
+      try {
+        const dirRes = await fetch(`media/?_t=${Date.now()}`, { cache: 'no-store' });
+        if (dirRes.ok) {
+          const text = await dirRes.text();
+          if (text.includes('<html') || text.includes('href=')) {
+            const regex = /href=["']([^"']+\.(jpg|jpeg|png|webp|gif|svg|bmp|mp4|webm|ogg|mov))["']/gi;
+            let match;
+            const discovered = [];
+            const seen = new Set();
+            while ((match = regex.exec(text)) !== null) {
+              const raw = match[1].split('?')[0].split('#')[0];
+              let filename = '';
+              try {
+                filename = decodeURIComponent(raw.split('/').pop().split('\\').pop());
+              } catch (_) {
+                filename = raw.split('/').pop().split('\\').pop();
+              }
+              if (filename && !seen.has(filename) && filename !== '..' && filename !== '.') {
+                seen.add(filename);
+                const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(filename);
+                discovered.push({
+                  id: 'media-' + filename.replace(/[^a-zA-Z0-9_-]/g, '_'),
+                  filename: filename,
+                  src: 'media/' + filename,
+                  type: isVideo ? 'video' : 'image',
+                  title: formatMediaTitle(filename),
+                  desc: isVideo ? 'Video informasi display' : 'Foto poster display informasi'
+                });
+              }
+            }
+            if (discovered.length > 0) {
+              dirListingSupported = true;
+              syncMediaWithManifest(discovered);
+              return;
+            }
+          }
+          dirListingSupported = false;
+        } else {
+          dirListingSupported = false;
+        }
+      } catch (_) {
+        dirListingSupported = false;
+      }
+    }
+
+    // 3. Try manifest.json (works on GitHub Pages, Vercel, and static servers)
+    let manifestLoaded = false;
     try {
       const res = await fetch(`media/manifest.json?_t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const items = await res.json();
         syncMediaWithManifest(items);
-        if (!window.location.hostname.endsWith('github.io')) {
+        manifestLoaded = true;
+        if (!isGitHubPages) {
           return;
         }
       }
     } catch (_) {}
 
-    // 3. GitHub API (when running on GitHub Pages: run once on initial load or on manual sync)
-    if (window.location.hostname.endsWith('github.io') && (!hasCheckedGitHubApi || isManualSync)) {
+    // 4. GitHub API (on GitHub Pages: run once on initial load or on manual sync)
+    if (isGitHubPages && (!hasCheckedGitHubApi || isManualSync)) {
       hasCheckedGitHubApi = true;
       try {
         const user = window.location.hostname.split('.')[0];
@@ -558,20 +679,12 @@ async function checkMediaFolderUpdates(isManualSync = false) {
       } catch (_) {}
     }
 
-    // 4. Vercel serverless /api/media
-    try {
-      if (!window.location.hostname.includes('github.io')) {
-        const apiRes = await fetch(`api/media?_t=${Date.now()}`, { cache: 'no-store' });
-        if (apiRes.ok) {
-          const items = await apiRes.json();
-          syncMediaWithManifest(items);
-          return;
-        }
-      }
-    } catch (_) {}
+    if (manifestLoaded) {
+      return;
+    }
   }
 
-  // Fallback for file:// protocol or static server: dynamically reload manifest.js
+  // Fallback for file:// protocol or static server without manifest.json: dynamically reload manifest.js
   reloadManifestScriptTag();
 }
 
@@ -606,19 +719,23 @@ function startLiveFolderSync() {
   // Immediately trigger live folder scan
   checkMediaFolderUpdates();
 
-  // Poll every 3 seconds for folder changes
-  setInterval(checkMediaFolderUpdates, 3000);
+  // Poll every 5s locally (localhost / file://), or every 30s on remote hosts (Vercel / GitHub Pages)
+  const isLocal = window.location.protocol === 'file:' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+  const pollIntervalMs = isLocal ? 5000 : 30000;
+  setInterval(() => checkMediaFolderUpdates(false), pollIntervalMs);
 
   // Hook up sync button in modal
   const btnSync = document.getElementById('btnSyncFolderNow');
   if (btnSync) {
     btnSync.addEventListener('click', async () => {
       btnSync.disabled = true;
-      btnSync.innerHTML = '🔄 Memindai Folder...';
+      btnSync.textContent = '🔄 Memindai Folder...';
       await checkMediaFolderUpdates(true);
       setTimeout(() => {
         btnSync.disabled = false;
-        btnSync.innerHTML = '🔄 Sinkronkan Sekarang';
+        btnSync.textContent = '🔄 Sinkronkan Sekarang';
         showToast('Pemeriksaan folder media selesai.');
       }, 600);
     });
@@ -628,28 +745,26 @@ function startLiveFolderSync() {
 // Load settings from localStorage
 function loadStoredPreferences() {
   try {
-    // Force default to 'full' and 'cover' for true edge-to-edge fullscreen
     let ratio = localStorage.getItem('display_ratio');
-    if (!ratio || ratio === '9:16') {
+    if (!ratio || !['full', '9:16', '16:9'].includes(ratio)) {
       ratio = 'full';
       localStorage.setItem('display_ratio', 'full');
     }
     state.aspectRatio = ratio;
 
-    const dur = localStorage.getItem('display_duration');
-    if (dur) state.slideDuration = parseInt(dur, 10);
+    const dur = parseInt(localStorage.getItem('display_duration'), 10);
+    if (Number.isFinite(dur) && dur >= 1000) state.slideDuration = dur;
 
-    const webDur = localStorage.getItem('display_web_duration');
-    if (webDur) state.webSlideDuration = parseInt(webDur, 10);
+    const webDur = parseInt(localStorage.getItem('display_web_duration'), 10);
+    if (Number.isFinite(webDur) && webDur >= 3000) state.webSlideDuration = webDur;
 
     const trans = localStorage.getItem('display_transition');
-    if (trans) state.transitionEffect = trans;
+    if (trans && ['fade', 'zoom', 'slide'].includes(trans)) state.transitionEffect = trans;
 
     let fit = localStorage.getItem('display_fit');
-    if (!fit || localStorage.getItem('display_fit_v2') !== 'true') {
+    if (!fit || !['contain', 'cover'].includes(fit)) {
       fit = 'contain';
       localStorage.setItem('display_fit', 'contain');
-      localStorage.setItem('display_fit_v2', 'true');
     }
     state.fitMode = fit;
 
@@ -747,9 +862,31 @@ function initSlideshow() {
   }
 }
 
+function getActiveSlideVideo() {
+  return elements.mediaContainer
+    ? elements.mediaContainer.querySelector('.slide-element.active video')
+    : null;
+}
+
+function playVideoWithFallback(video) {
+  if (!video) return;
+  const playPromise = video.play();
+  if (playPromise && typeof playPromise.catch === 'function') {
+    playPromise.catch(() => {
+      // Autoplay blocked when unmuted -> mute and retry so 24/7 signage never stalls
+      if (!video.muted) {
+        state.isMuted = true;
+        video.muted = true;
+        syncMuteUI();
+        video.play().catch(err => console.warn('Video playback failed after mute fallback:', err));
+      }
+    });
+  }
+}
+
 function renderSlide(index) {
   if (!state.media || state.media.length === 0) return;
-  
+
   // Wrap around index
   if (index >= state.media.length) index = 0;
   if (index < 0) index = state.media.length - 1;
@@ -757,32 +894,44 @@ function renderSlide(index) {
 
   const item = state.media[index];
   const resolvedSrc = resolveMediaPath(item.src);
-  
+  const encodedSrc = encodeMediaUrl(resolvedSrc);
+
   // Update Ambient Blurred Glow Backdrop
   if (elements.ambientMedia) {
     if (item.type === 'video') {
-      elements.ambientMedia.style.backgroundImage = `url('media/847287402_18109332539213351_4384306797872519912_n.jpg')`;
+      elements.ambientMedia.style.backgroundImage = `url("media/847287402_18109332539213351_4384306797872519912_n.jpg")`;
     } else if (item.type === 'web') {
       elements.ambientMedia.style.backgroundImage = `linear-gradient(135deg, #0284c7 0%, #0f172a 50%, #047857 100%)`;
     } else {
-      elements.ambientMedia.style.backgroundImage = `url('${resolvedSrc}')`;
+      elements.ambientMedia.style.backgroundImage = `url("${encodedSrc}")`;
     }
   }
 
   // Update Story Segments
   updateStoryBars(0);
 
-  // Clear previous slides or fade them
-  const prevSlide = elements.mediaContainer.querySelector('.slide-element.active');
-  if (prevSlide) {
+  // Clear previous slides cleanly (pause any outgoing video immediately)
+  const prevSlides = elements.mediaContainer.querySelectorAll('.slide-element.active');
+  prevSlides.forEach(prevSlide => {
+    const prevVideo = prevSlide.querySelector('video');
+    if (prevVideo) {
+      prevVideo.onended = null;
+      prevVideo.ontimeupdate = null;
+      prevVideo.onerror = null;
+      prevVideo.pause();
+    }
     prevSlide.classList.remove('active');
     prevSlide.classList.add('previous');
     setTimeout(() => {
+      if (prevVideo) {
+        prevVideo.removeAttribute('src');
+        prevVideo.load();
+      }
       if (prevSlide && prevSlide.parentElement) {
         prevSlide.remove();
       }
     }, 900);
-  }
+  });
 
   // Create new slide element
   const slideEl = document.createElement('div');
@@ -794,20 +943,24 @@ function renderSlide(index) {
     videoWrapper.className = 'video-media-wrapper';
 
     const video = document.createElement('video');
-    video.src = resolvedSrc;
-    video.autoplay = true;
+    video.src = encodedSrc;
+    video.autoplay = state.isPlaying;
     video.muted = state.isMuted;
     video.playsInline = true;
     video.loop = false; // Advance to next slide when finished!
     video.className = 'slide-media';
 
     video.onerror = () => {
-      const fn = (item.src || '').split('/').pop().split('\\').pop();
-      if (!video.src.includes('media/' + fn)) {
-        video.src = 'media/' + fn;
-        return;
+      if (!video.dataset.retried && !resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
+        video.dataset.retried = '1';
+        const fn = (item.src || '').split('/').pop().split('\\').pop();
+        const fallback = encodeMediaUrl('media/' + fn);
+        if (fallback && fallback !== encodedSrc) {
+          video.src = fallback;
+          return;
+        }
       }
-      console.warn(`[Display] Video tidak ditemukan di disk: ${item.src}. Menghapus item.`);
+      console.warn(`[Display] Video tidak dapat diputar: ${item.src}. Menghapus item.`);
       state.media = state.media.filter(m => m.id !== item.id && m.src !== item.src);
       saveMediaToDB(state.media);
       updateMediaCounters();
@@ -821,14 +974,14 @@ function renderSlide(index) {
 
     // When video ends, automatically go to next slide
     video.onended = () => {
-      if (state.isPlaying) {
+      if (state.isPlaying && state.activeView === 'slideshow') {
         nextSlide();
       }
     };
 
     // Update progress bar with video duration
     video.ontimeupdate = () => {
-      if (video.duration) {
+      if (video.duration && slideEl.classList.contains('active')) {
         const pct = (video.currentTime / video.duration) * 100;
         elements.slideTimerFill.style.width = `${pct}%`;
         updateStoryBars(pct);
@@ -839,6 +992,7 @@ function renderSlide(index) {
     slideEl.appendChild(videoWrapper);
   } else if (item.type === 'web') {
     // Web Page / Dashboard Iframe element
+    const safeWebUrl = isSafeHttpUrl(resolvedSrc) ? resolvedSrc : 'about:blank';
     const webWrapper = document.createElement('div');
     webWrapper.className = 'web-media-wrapper';
 
@@ -847,12 +1001,12 @@ function renderSlide(index) {
     loadingSpinner.innerHTML = `
       <div class="web-spinner"></div>
       <div class="web-loading-text">Memuat Tampilan Web...</div>
-      <div class="web-loading-sub">${item.title || resolvedSrc}</div>
+      <div class="web-loading-sub">${escapeHtml(item.title || safeWebUrl)}</div>
     `;
     webWrapper.appendChild(loadingSpinner);
 
     const iframe = document.createElement('iframe');
-    iframe.src = resolvedSrc;
+    iframe.src = safeWebUrl;
     iframe.title = item.title || 'Web Display';
     iframe.className = 'slide-media web-media-iframe';
     iframe.setAttribute('allow', 'fullscreen; autoplay');
@@ -869,8 +1023,8 @@ function renderSlide(index) {
     iframe.onerror = () => {
       loadingSpinner.innerHTML = `
         <div class="web-loading-text" style="color: var(--accent-rose);">Halaman Web Tidak Dapat Dimuat Langsung</div>
-        <div class="web-loading-sub">${resolvedSrc}</div>
-        <a href="${resolvedSrc}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="margin-top: 10px; display: inline-block;">Buka di Tab Baru</a>
+        <div class="web-loading-sub">${escapeHtml(safeWebUrl)}</div>
+        <a href="${escapeHtml(safeWebUrl)}" target="_blank" rel="noopener noreferrer" class="btn-primary" style="margin-top: 10px; display: inline-block;">Buka di Tab Baru</a>
       `;
     };
 
@@ -879,15 +1033,19 @@ function renderSlide(index) {
   } else {
     // Image element
     const img = document.createElement('img');
-    img.src = resolvedSrc;
+    img.src = encodedSrc;
     img.alt = item.title || 'Display Media';
     img.className = 'slide-media';
     img.loading = 'eager';
     img.onerror = () => {
-      const fn = (item.src || '').split('/').pop().split('\\').pop();
-      if (!img.src.includes('media/' + fn)) {
-        img.src = 'media/' + fn;
-        return;
+      if (!img.dataset.retried && !resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
+        img.dataset.retried = '1';
+        const fn = (item.src || '').split('/').pop().split('\\').pop();
+        const fallback = encodeMediaUrl('media/' + fn);
+        if (fallback && fallback !== encodedSrc) {
+          img.src = fallback;
+          return;
+        }
       }
       console.warn(`[Display] File gambar tidak ditemukan di disk: ${item.src}. Menghapus item.`);
       state.media = state.media.filter(m => m.id !== item.id && m.src !== item.src);
@@ -924,21 +1082,25 @@ function updateSlideMetadata(item, index) {
     elements.currentTypeName.textContent = 'VIDEO';
     elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
     elements.btnToggleMute.classList.remove('hidden');
+    if (elements.btnSideMute) elements.btnSideMute.classList.remove('hidden');
     if (elements.btnSideOpenWeb) elements.btnSideOpenWeb.classList.add('hidden');
   } else if (item.type === 'web') {
     elements.currentTypePill.className = 'reels-type-badge type-web';
     elements.currentTypeName.textContent = 'WEB';
     elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
     elements.btnToggleMute.classList.add('hidden');
+    if (elements.btnSideMute) elements.btnSideMute.classList.add('hidden');
     if (elements.btnSideOpenWeb) {
+      const safeUrl = isSafeHttpUrl(item.src) ? item.src : '#';
       elements.btnSideOpenWeb.classList.remove('hidden');
-      elements.btnSideOpenWeb.href = resolveMediaPath(item.src);
+      elements.btnSideOpenWeb.href = safeUrl;
     }
   } else {
     elements.currentTypePill.className = 'reels-type-badge';
     elements.currentTypeName.textContent = 'FOTO';
     elements.currentTypeIcon.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
     elements.btnToggleMute.classList.add('hidden');
+    if (elements.btnSideMute) elements.btnSideMute.classList.add('hidden');
     if (elements.btnSideOpenWeb) elements.btnSideOpenWeb.classList.add('hidden');
   }
 }
@@ -946,14 +1108,16 @@ function updateSlideMetadata(item, index) {
 // Timer Loop for Slideshow
 function startSlideTimer() {
   clearSlideTimer();
+  if (state.activeView !== 'slideshow' || state.media.length === 0) return;
+
   const currentItem = state.media[state.currentIndex];
-  
+
   // If current item is video, the video's 'ended' event controls progression
   if (currentItem && currentItem.type === 'video') {
     elements.slideTimerFill.style.width = '0%';
-    const activeVideo = elements.mediaContainer.querySelector('video');
+    const activeVideo = getActiveSlideVideo();
     if (activeVideo && activeVideo.paused) {
-      activeVideo.play().catch(e => console.log('Autoplay policy caught:', e));
+      playVideoWithFallback(activeVideo);
     }
     return;
   }
@@ -967,7 +1131,7 @@ function startSlideTimer() {
   state.slideStartTime = performance.now();
 
   function progressLoop(now) {
-    if (!state.isPlaying) return;
+    if (!state.isPlaying || state.activeView !== 'slideshow') return;
     const elapsed = now - state.slideStartTime;
     const progress = Math.min((elapsed / itemDuration) * 100, 100);
     elements.slideTimerFill.style.width = `${progress}%`;
@@ -1019,8 +1183,8 @@ function togglePlayPause() {
     if (elements.iconSidePlay) elements.iconSidePlay.classList.add('hidden');
     if (elements.iconSidePause) elements.iconSidePause.classList.remove('hidden');
     showToast('Display Otomatis: Berjalan');
-    const activeVideo = elements.mediaContainer.querySelector('video');
-    if (activeVideo) activeVideo.play().catch(console.warn);
+    const activeVideo = getActiveSlideVideo();
+    if (activeVideo) playVideoWithFallback(activeVideo);
     startSlideTimer();
   } else {
     elements.iconPlay.classList.remove('hidden');
@@ -1028,31 +1192,34 @@ function togglePlayPause() {
     if (elements.iconSidePlay) elements.iconSidePlay.classList.remove('hidden');
     if (elements.iconSidePause) elements.iconSidePause.classList.add('hidden');
     showToast('Display Otomatis: Dijeda');
-    const activeVideo = elements.mediaContainer.querySelector('video');
+    const activeVideo = getActiveSlideVideo();
     if (activeVideo) activeVideo.pause();
     clearSlideTimer();
   }
 }
 
+function syncMuteUI() {
+  if (state.isMuted) {
+    if (elements.iconSoundOn) elements.iconSoundOn.classList.add('hidden');
+    if (elements.iconSoundMute) elements.iconSoundMute.classList.remove('hidden');
+    if (elements.iconSideSoundOn) elements.iconSideSoundOn.classList.add('hidden');
+    if (elements.iconSideSoundMute) elements.iconSideSoundMute.classList.remove('hidden');
+  } else {
+    if (elements.iconSoundOn) elements.iconSoundOn.classList.remove('hidden');
+    if (elements.iconSoundMute) elements.iconSoundMute.classList.add('hidden');
+    if (elements.iconSideSoundOn) elements.iconSideSoundOn.classList.remove('hidden');
+    if (elements.iconSideSoundMute) elements.iconSideSoundMute.classList.add('hidden');
+  }
+}
+
 function toggleMute() {
   state.isMuted = !state.isMuted;
-  const activeVideo = elements.mediaContainer.querySelector('video');
+  const activeVideo = getActiveSlideVideo();
   if (activeVideo) {
     activeVideo.muted = state.isMuted;
   }
-  if (state.isMuted) {
-    elements.iconSoundOn.classList.add('hidden');
-    elements.iconSoundMute.classList.remove('hidden');
-    if (elements.iconSideSoundOn) elements.iconSideSoundOn.classList.add('hidden');
-    if (elements.iconSideSoundMute) elements.iconSideSoundMute.classList.remove('hidden');
-    showToast('Suara Video: Dibisukan (Muted)');
-  } else {
-    elements.iconSoundOn.classList.remove('hidden');
-    elements.iconSoundMute.classList.add('hidden');
-    if (elements.iconSideSoundOn) elements.iconSideSoundOn.classList.remove('hidden');
-    if (elements.iconSideSoundMute) elements.iconSideSoundMute.classList.add('hidden');
-    showToast('Suara Video: Aktif');
-  }
+  syncMuteUI();
+  showToast(state.isMuted ? 'Suara Video: Dibisukan (Muted)' : 'Suara Video: Aktif');
 }
 
 function toggleFitMode() {
@@ -1126,6 +1293,20 @@ function initGalleryGrid() {
   renderGalleryGrid();
 }
 
+function attachMediaFallback(el, originalSrc) {
+  if (!el) return;
+  el.addEventListener('error', () => {
+    if (el.dataset.retried) return;
+    el.dataset.retried = '1';
+    if (!originalSrc || originalSrc.startsWith('blob:') || originalSrc.startsWith('data:')) return;
+    const fn = originalSrc.split('/').pop().split('\\').pop();
+    const fallback = encodeMediaUrl('media/' + fn);
+    if (fallback && el.getAttribute('src') !== fallback) {
+      el.src = fallback;
+    }
+  });
+}
+
 function renderGalleryGrid() {
   elements.galleryGrid.innerHTML = '';
 
@@ -1141,11 +1322,14 @@ function renderGalleryGrid() {
     card.dataset.index = index;
 
     const resolvedSrc = resolveMediaPath(item.src);
+    const encodedSrc = encodeMediaUrl(resolvedSrc);
+    const safeTitle = escapeHtml(item.title || 'Informasi Layanan');
+    const safeDesc = escapeHtml(item.desc || '');
     let thumbHtml = '';
     if (item.type === 'video') {
       thumbHtml = `
         <div class="card-thumb-wrapper">
-          <video class="card-thumb" src="${resolvedSrc}#t=1" preload="metadata" onerror="const f=this.getAttribute('src').split('/').pop();if(!this.src.includes('media/'+f))this.src='media/'+f;"></video>
+          <video class="card-thumb" src="${escapeHtml(encodedSrc)}#t=1" preload="metadata" muted></video>
           <div class="card-type-tag tag-video">
             <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             VIDEO
@@ -1156,7 +1340,7 @@ function renderGalleryGrid() {
         </div>
       `;
     } else if (item.type === 'web') {
-      const cleanUrl = resolvedSrc.replace(/^https?:\/\//, '');
+      const cleanUrl = escapeHtml(resolvedSrc.replace(/^https?:\/\//, ''));
       thumbHtml = `
         <div class="card-thumb-wrapper">
           <div class="card-thumb card-thumb-web">
@@ -1166,7 +1350,7 @@ function renderGalleryGrid() {
             </div>
             <div class="web-mockup-content">
               <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" style="color: var(--accent-cyan);"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <div class="web-mockup-title">${item.title}</div>
+              <div class="web-mockup-title">${safeTitle}</div>
               <div class="web-mockup-badge">LIVE WEB DASHBOARD</div>
             </div>
           </div>
@@ -1182,7 +1366,7 @@ function renderGalleryGrid() {
     } else {
       thumbHtml = `
         <div class="card-thumb-wrapper">
-          <img class="card-thumb" src="${resolvedSrc}" alt="${item.title}" loading="lazy" onerror="const f=this.getAttribute('src').split('/').pop();if(!this.src.includes('media/'+f))this.src='media/'+f;">
+          <img class="card-thumb" src="${escapeHtml(encodedSrc)}" alt="${safeTitle}" loading="lazy">
           <div class="card-type-tag">
             <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             FOTO
@@ -1197,10 +1381,13 @@ function renderGalleryGrid() {
     card.innerHTML = `
       ${thumbHtml}
       <div class="card-info">
-        <h4 class="card-title">${item.title}</h4>
-        <p class="card-desc">${item.desc}</p>
+        <h4 class="card-title">${safeTitle}</h4>
+        <p class="card-desc">${safeDesc}</p>
       </div>
     `;
+
+    const thumbMedia = card.querySelector('img.card-thumb, video.card-thumb');
+    if (thumbMedia) attachMediaFallback(thumbMedia, resolvedSrc);
 
     card.addEventListener('click', () => {
       openLightbox(state.media.indexOf(item));
@@ -1232,12 +1419,19 @@ function openLightbox(index) {
   lightboxIndex = index;
   renderLightboxItem();
   elements.lightboxModal.classList.remove('hidden');
+  elements.lightboxModal.setAttribute('aria-hidden', 'false');
 }
 
 function closeLightbox() {
   elements.lightboxModal.classList.add('hidden');
+  elements.lightboxModal.setAttribute('aria-hidden', 'true');
   const lbVideo = elements.lightboxContentBox.querySelector('video');
-  if (lbVideo) lbVideo.pause();
+  if (lbVideo) {
+    lbVideo.pause();
+    lbVideo.removeAttribute('src');
+    lbVideo.load();
+  }
+  elements.lightboxContentBox.innerHTML = '';
 }
 
 function renderLightboxItem() {
@@ -1249,39 +1443,35 @@ function renderLightboxItem() {
   elements.lightboxDesc.textContent = item.desc;
 
   const resolvedSrc = resolveMediaPath(item.src);
+  const encodedSrc = encodeMediaUrl(resolvedSrc);
   if (item.type === 'video') {
     const video = document.createElement('video');
-    video.src = resolvedSrc;
+    video.src = encodedSrc;
     video.controls = true;
     video.autoplay = true;
     video.className = 'lightbox-media';
-    video.onerror = () => {
-      const fn = (item.src || '').split('/').pop().split('\\').pop();
-      if (!video.src.includes('media/' + fn)) video.src = 'media/' + fn;
-    };
+    attachMediaFallback(video, resolvedSrc);
     elements.lightboxContentBox.appendChild(video);
   } else if (item.type === 'web') {
+    const safeWebUrl = isSafeHttpUrl(resolvedSrc) ? resolvedSrc : 'about:blank';
     const webContainer = document.createElement('div');
     webContainer.className = 'lightbox-web-container';
     webContainer.innerHTML = `
       <div class="lightbox-web-toolbar">
-        <span class="web-url-text">${resolvedSrc}</span>
-        <a href="${resolvedSrc}" target="_blank" rel="noopener noreferrer" class="btn-subtle" style="font-size: 0.78rem;">
+        <span class="web-url-text">${escapeHtml(safeWebUrl)}</span>
+        <a href="${escapeHtml(safeWebUrl)}" target="_blank" rel="noopener noreferrer" class="btn-subtle" style="font-size: 0.78rem;">
           Buka Tab Baru ↗
         </a>
       </div>
-      <iframe src="${resolvedSrc}" class="lightbox-web-iframe" allow="fullscreen; autoplay"></iframe>
+      <iframe src="${escapeHtml(safeWebUrl)}" class="lightbox-web-iframe" allow="fullscreen; autoplay" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
     `;
     elements.lightboxContentBox.appendChild(webContainer);
   } else {
     const img = document.createElement('img');
-    img.src = resolvedSrc;
+    img.src = encodedSrc;
     img.alt = item.title;
     img.className = 'lightbox-media';
-    img.onerror = () => {
-      const fn = (item.src || '').split('/').pop().split('\\').pop();
-      if (!img.src.includes('media/' + fn)) img.src = 'media/' + fn;
-    };
+    attachMediaFallback(img, resolvedSrc);
     elements.lightboxContentBox.appendChild(img);
   }
 }
@@ -1301,9 +1491,8 @@ function prevLightbox() {
 // ===================================================================
 // ADD MEDIA (UPLOAD & URL)
 // ===================================================================
-let stagedFiles = [];
-
 function handleFileSelection(files) {
+  let addedCount = 0;
   Array.from(files).forEach(file => {
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
@@ -1313,26 +1502,31 @@ function handleFileSelection(files) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const newItem = {
-        id: 'upload-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
-        type: isVideo ? 'video' : 'image',
-        src: e.target.result, // base64 Data URL stored persistently in IndexedDB
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        desc: `File ${isVideo ? 'Video' : 'Foto'} diunggah pengguna`
-      };
-
-      state.media.push(newItem);
-      saveMediaToDB(state.media);
-      updateMediaCounters();
-      renderGalleryGrid();
-      renderSettingsMediaList();
-      showToast(`Berhasil menambahkan: ${newItem.title}`);
+    const objectUrl = URL.createObjectURL(file);
+    const newItem = {
+      id: 'upload-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      type: isVideo ? 'video' : 'image',
+      src: objectUrl,
+      fileBlob: file, // Stored natively as Blob in IndexedDB (no Base64 bloat)
+      title: file.name.replace(/\.[^/.]+$/, ''),
+      desc: `File ${isVideo ? 'Video' : 'Foto'} diunggah pengguna`
     };
-    reader.readAsDataURL(file);
+
+    state.media.push(newItem);
+    addedCount++;
   });
 
+  if (addedCount > 0) {
+    saveMediaToDB(state.media);
+    updateMediaCounters();
+    renderStoryBars();
+    updateStoryBars(0);
+    renderGalleryGrid();
+    renderSettingsMediaList();
+    showToast(`Berhasil menambahkan ${addedCount} media baru!`);
+  }
+
+  if (elements.mediaFileInput) elements.mediaFileInput.value = '';
   closeAddMediaModal();
 }
 
@@ -1344,6 +1538,10 @@ function handleUrlMediaSubmission(e) {
   const duration = (type === 'web' && elements.urlMediaDuration) ? parseInt(elements.urlMediaDuration.value, 10) : undefined;
 
   if (!url) return;
+  if (!isSafeHttpUrl(url)) {
+    showToast('URL harus menggunakan protokol http:// atau https://');
+    return;
+  }
 
   const newItem = {
     id: 'url-' + Date.now(),
@@ -1359,6 +1557,8 @@ function handleUrlMediaSubmission(e) {
   state.media.push(newItem);
   saveMediaToDB(state.media);
   updateMediaCounters();
+  renderStoryBars();
+  updateStoryBars(0);
   renderGalleryGrid();
   renderSettingsMediaList();
 
@@ -1370,10 +1570,12 @@ function handleUrlMediaSubmission(e) {
 
 function openAddMediaModal() {
   elements.addMediaModal.classList.remove('hidden');
+  elements.addMediaModal.setAttribute('aria-hidden', 'false');
 }
 
 function closeAddMediaModal() {
   elements.addMediaModal.classList.add('hidden');
+  elements.addMediaModal.setAttribute('aria-hidden', 'true');
 }
 
 // ===================================================================
@@ -1382,10 +1584,12 @@ function closeAddMediaModal() {
 function openSettingsModal() {
   renderSettingsMediaList();
   elements.settingsModal.classList.remove('hidden');
+  elements.settingsModal.setAttribute('aria-hidden', 'false');
 }
 
 function closeSettingsModal() {
   elements.settingsModal.classList.add('hidden');
+  elements.settingsModal.setAttribute('aria-hidden', 'true');
 }
 
 function renderSettingsMediaList() {
@@ -1397,35 +1601,39 @@ function renderSettingsMediaList() {
     const resolvedSrc = resolveMediaPath(item.src);
     const isVideo = item.type === 'video';
     const isWeb = item.type === 'web';
-    
+    const safeTitle = escapeHtml(item.title || 'Informasi Layanan');
+
     let thumbHtml = '';
+    const thumbSrc = isVideo ? 'media/847287402_18109332539213351_4384306797872519912_n.jpg' : resolvedSrc;
     if (isWeb) {
       thumbHtml = `<div class="settings-media-thumb settings-web-thumb">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
       </div>`;
     } else {
-      const thumbSrc = isVideo ? 'media/847287402_18109332539213351_4384306797872519912_n.jpg' : resolvedSrc;
-      thumbHtml = `<img class="settings-media-thumb" src="${thumbSrc}" alt="thumb" onerror="const f=this.getAttribute('src').split('/').pop();if(!this.src.includes('media/'+f))this.src='media/'+f;">`;
+      thumbHtml = `<img class="settings-media-thumb" src="${escapeHtml(encodeMediaUrl(thumbSrc))}" alt="thumb">`;
     }
 
     const typeColor = isWeb ? 'var(--accent-cyan)' : (isVideo ? 'var(--accent-amber)' : 'var(--accent-emerald)');
-    const typeLabel = isWeb ? 'WEB / IFRAME' : item.type.toUpperCase();
+    const typeLabel = isWeb ? 'WEB / IFRAME' : escapeHtml(item.type.toUpperCase());
 
     row.innerHTML = `
       <div class="settings-media-left">
         <span style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.75rem;">${idx + 1}.</span>
         ${thumbHtml}
         <div style="overflow: hidden;">
-          <div class="settings-media-title">${item.title}</div>
+          <div class="settings-media-title">${safeTitle}</div>
           <div style="font-size: 0.7rem; color: ${typeColor}; font-weight: 600;">
             ${typeLabel} ${item.duration ? `• ${(item.duration/1000)}s` : ''}
           </div>
         </div>
       </div>
-      <button class="settings-media-del-btn" title="Hapus dari display" data-id="${item.id}">
+      <button class="settings-media-del-btn" title="Hapus dari display" data-id="${escapeHtml(item.id)}">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
       </button>
     `;
+
+    const thumbImg = row.querySelector('img.settings-media-thumb');
+    if (thumbImg) attachMediaFallback(thumbImg, thumbSrc);
 
     row.querySelector('.settings-media-del-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1441,27 +1649,49 @@ function deleteMediaItem(id) {
     showToast('Minimal harus ada 1 media dalam display!');
     return;
   }
+  const target = state.media.find(m => m.id === id);
+  if (target) {
+    if (target.src && target.src.startsWith('blob:')) {
+      URL.revokeObjectURL(target.src);
+    } else if (target.src) {
+      addDeletedMediaSrc(target.src);
+    }
+  }
   state.media = state.media.filter(m => m.id !== id);
   if (state.currentIndex >= state.media.length) {
     state.currentIndex = 0;
   }
   saveMediaToDB(state.media);
   updateMediaCounters();
+  renderStoryBars();
   renderSettingsMediaList();
   renderGalleryGrid();
+  clearSlideTimer();
   renderSlide(state.currentIndex);
+  if (state.isPlaying && state.activeView === 'slideshow') {
+    startSlideTimer();
+  }
   showToast('Media dihapus dari antrean display.');
 }
 
 function resetMediaToDefault() {
-  if (confirm('Kembalikan daftar media ke poster & video bawaan?')) {
-    state.media = [...DEFAULT_MEDIA];
+  if (confirm('Kembalikan daftar media ke semua poster & video bawaan?')) {
+    state.media.forEach(m => {
+      if (m.src && m.src.startsWith('blob:')) URL.revokeObjectURL(m.src);
+    });
+    clearDeletedMediaSrcs();
+    state.media = getInitialMediaItems();
     state.currentIndex = 0;
     saveMediaToDB(state.media);
     updateMediaCounters();
+    renderStoryBars();
     renderSettingsMediaList();
     renderGalleryGrid();
+    clearSlideTimer();
     renderSlide(0);
+    if (state.isPlaying && state.activeView === 'slideshow') {
+      startSlideTimer();
+    }
     showToast('Media display berhasil di-reset ke bawaan.');
   }
 }
@@ -1587,7 +1817,11 @@ function switchView(view) {
     elements.btnViewSlideshow.classList.add('active');
     elements.btnViewGrid.classList.remove('active');
     applyFitMode();
-    if (state.isPlaying) startSlideTimer();
+    if (state.isPlaying) {
+      const activeVideo = getActiveSlideVideo();
+      if (activeVideo && activeVideo.paused) playVideoWithFallback(activeVideo);
+      startSlideTimer();
+    }
   } else {
     elements.app.className = 'app-container mode-grid';
     elements.app.classList.remove('controls-hidden');
@@ -1596,6 +1830,8 @@ function switchView(view) {
     elements.btnViewSlideshow.classList.remove('active');
     elements.btnViewGrid.classList.add('active');
     clearSlideTimer();
+    const activeVideo = getActiveSlideVideo();
+    if (activeVideo) activeVideo.pause();
     renderGalleryGrid();
   }
 }
@@ -1773,9 +2009,12 @@ function initEventListeners() {
   elements.btnLightboxPrev.addEventListener('click', prevLightbox);
   elements.btnLightboxNext.addEventListener('click', nextLightbox);
   elements.btnLightboxPlayFromHere.addEventListener('click', () => {
+    const targetIdx = lightboxIndex;
     closeLightbox();
     switchView('slideshow');
-    renderSlide(lightboxIndex);
+    clearSlideTimer();
+    renderSlide(targetIdx);
+    if (state.isPlaying) startSlideTimer();
   });
 
   // Aspect Ratio Switchers (9:16 Reels vs 16:9 TV vs Penuh)

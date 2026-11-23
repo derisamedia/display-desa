@@ -36,10 +36,13 @@ function formatTitle(filename) {
   const ext = path.extname(filename);
   const base = path.basename(filename, ext);
   if (/^\d+$/.test(base)) {
-    return `Poster Informasi #${base}`;
+    return `Poster Layanan #${base}`;
   }
   if (base.toLowerCase().includes('snapgram')) {
     return 'Video Layanan Publik';
+  }
+  if (base.toLowerCase().startsWith('whatsapp image')) {
+    return 'Foto Layanan • ' + base.replace(/^whatsapp image /i, '').replace(/ at /i, ' ');
   }
   if (/^[0-9_n]+$/.test(base) || base.length > 30) {
     return 'Informasi Layanan Publik';
@@ -50,18 +53,18 @@ function formatTitle(filename) {
 module.exports = (req, res) => {
   try {
     const mediaDir = path.join(process.cwd(), 'media');
-    
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
     // Check if manifest.json already exists
     const manifestPath = path.join(mediaDir, 'manifest.json');
     if (fs.existsSync(manifestPath)) {
       const content = fs.readFileSync(manifestPath, 'utf-8');
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       return res.status(200).send(content);
     }
 
     if (!fs.existsSync(mediaDir)) {
-      res.setHeader('Content-Type', 'application/json');
       return res.status(200).json([]);
     }
 
@@ -69,11 +72,20 @@ module.exports = (req, res) => {
     const items = [];
 
     for (const file of files) {
-      if (file === 'manifest.json' || file === 'manifest.js') continue;
+      if (file === 'manifest.json' || file === 'manifest.js' || file.startsWith('.') || file.startsWith('~$')) continue;
       const ext = path.extname(file).toLowerCase();
       const isImage = IMAGE_EXTENSIONS.has(ext);
       const isVideo = VIDEO_EXTENSIONS.has(ext);
       if (!isImage && !isVideo) continue;
+
+      const fullPath = path.join(mediaDir, file);
+      let stats;
+      try {
+        stats = fs.statSync(fullPath);
+        if (!stats.isFile()) continue;
+      } catch (_) {
+        continue;
+      }
 
       const meta = KNOWN_METADATA[file] || {};
       items.push({
@@ -82,12 +94,22 @@ module.exports = (req, res) => {
         type: isVideo ? 'video' : 'image',
         src: 'media/' + file,
         title: meta.title || formatTitle(file),
-        desc: meta.desc || (isVideo ? 'Video informasi display' : 'Foto poster display informasi')
+        desc: meta.desc || (isVideo ? 'Video informasi display' : 'Foto poster display informasi'),
+        size: stats.size,
+        updatedAt: stats.mtimeMs
       });
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    const defaultKeys = Object.keys(KNOWN_METADATA);
+    items.sort((a, b) => {
+      const idxA = defaultKeys.indexOf(a.filename);
+      const idxB = defaultKeys.indexOf(b.filename);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return b.updatedAt - a.updatedAt;
+    });
+
     return res.status(200).json(items);
   } catch (err) {
     return res.status(500).json({ error: err.message });

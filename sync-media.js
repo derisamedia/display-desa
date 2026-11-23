@@ -72,7 +72,7 @@ function scanMediaFiles() {
   const items = [];
 
   for (const file of files) {
-    if (file === 'manifest.json' || file === 'manifest.js') continue;
+    if (file === 'manifest.json' || file === 'manifest.js' || file.startsWith('.') || file.startsWith('~$')) continue;
 
     const ext = path.extname(file).toLowerCase();
     const isImage = IMAGE_EXTENSIONS.has(ext);
@@ -81,7 +81,13 @@ function scanMediaFiles() {
     if (!isImage && !isVideo) continue;
 
     const fullPath = path.join(MEDIA_DIR, file);
-    const stats = fs.statSync(fullPath);
+    let stats;
+    try {
+      stats = fs.statSync(fullPath);
+      if (!stats.isFile()) continue;
+    } catch (_) {
+      continue;
+    }
 
     const meta = KNOWN_METADATA[file] || {};
     const title = meta.title || formatTitleFromFilename(file);
@@ -150,37 +156,57 @@ function startWatcher() {
 // Optional dev server with video streaming support
 function startServer() {
   const MIME_TYPES = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.json': 'application/json',
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
     '.webp': 'image/webp',
     '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
     '.mp4': 'video/mp4',
-    '.webm': 'video/webm'
+    '.webm': 'video/webm',
+    '.ogg': 'video/ogg',
+    '.mov': 'video/quicktime'
   };
 
+  const rootDir = path.resolve(__dirname);
+
   const server = http.createServer((req, res) => {
-    let reqPath = decodeURI(req.url.split('?')[0]);
+    let reqPath;
+    try {
+      reqPath = decodeURIComponent((req.url || '/').split('?')[0]);
+    } catch (_) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('400 Bad Request');
+      return;
+    }
     if (reqPath === '/') reqPath = '/index.html';
 
     // API endpoint for live media items
     if (reqPath === '/api/media') {
       const items = scanMediaFiles();
       res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Access-Control-Allow-Origin': '*'
       });
       res.end(JSON.stringify(items));
       return;
     }
 
-    const filePath = path.join(__dirname, reqPath);
+    // Prevent path traversal outside project root
+    const filePath = path.resolve(rootDir, reqPath.replace(/^[/\\]+/, ''));
+    if (filePath !== rootDir && !filePath.startsWith(rootDir + path.sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('403 Forbidden');
+      return;
+    }
+
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
@@ -193,11 +219,25 @@ function startServer() {
 
       const range = req.headers.range;
       if (range && contentType.startsWith('video/')) {
-        const parts = range.replace(/bytes=/, "").split("-");
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+        const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+        if (!match) {
+          res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` });
+          res.end();
+          return;
+        }
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? Math.min(parseInt(match[2], 10), stats.size - 1) : stats.size - 1;
+        if (isNaN(start) || isNaN(end) || start < 0 || start >= stats.size || start > end) {
+          res.writeHead(416, { 'Content-Range': `bytes */${stats.size}` });
+          res.end();
+          return;
+        }
         const chunksize = (end - start) + 1;
         const file = fs.createReadStream(filePath, { start, end });
+        file.on('error', () => {
+          if (!res.headersSent) res.writeHead(500);
+          res.end();
+        });
         res.writeHead(206, {
           'Content-Range': `bytes ${start}-${end}/${stats.size}`,
           'Accept-Ranges': 'bytes',
@@ -206,12 +246,18 @@ function startServer() {
         });
         file.pipe(res);
       } else {
+        const file = fs.createReadStream(filePath);
+        file.on('error', () => {
+          if (!res.headersSent) res.writeHead(500);
+          res.end();
+        });
         res.writeHead(200, {
           'Content-Length': stats.size,
           'Content-Type': contentType,
+          'Cache-Control': reqPath.includes('manifest.') ? 'no-cache, no-store, must-revalidate' : 'no-cache',
           'Access-Control-Allow-Origin': '*'
         });
-        fs.createReadStream(filePath).pipe(res);
+        file.pipe(res);
       }
     });
   });

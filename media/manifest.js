@@ -1,5 +1,5 @@
 // Auto-generated media manifest
-// Generated at: 2026-10-22T01:12:38.246Z
+// Generated at: 2026-11-23T01:22:31.808Z
 window.__MEDIA_MANIFEST__ = [
   {
     "id": "media-d45ea87532c4",
@@ -9,7 +9,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Apa Yang Berbeda Dalam Perlinsos?",
     "desc": "Dua formulir sanggahan: Form Sanggah Singkat & Form DTSEN",
     "size": 551179,
-    "updatedAt": 1791939551523.7273
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-efd9cfd273e6",
@@ -19,7 +19,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Data Kamu Tidak Sesuai?",
     "desc": "Panduan pengajuan sanggahan resmi melalui Portal Perlinsos",
     "size": 439607,
-    "updatedAt": 1791939551480.728
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-200a8c8d4435",
@@ -29,7 +29,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Bagaimana Mengetahui Apa Yang Perlu Disanggah?",
     "desc": "Cek alasan tidak layak dan periksa kesesuaian data kondisi sebenarnya",
     "size": 457035,
-    "updatedAt": 1791939547155.0818
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-dff91c738c1d",
@@ -39,7 +39,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Hasil Perlinsos Belum Sesuai Kondisi Kamu?",
     "desc": "Informasi hak sanggah dan peninjauan kesejahteraan masyarakat",
     "size": 484281,
-    "updatedAt": 1791939517176.851
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-799346232139",
@@ -49,7 +49,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 1",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 5131596,
-    "updatedAt": 1792629246125.273
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-7b43dc8097ed",
@@ -59,7 +59,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 2",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 4836284,
-    "updatedAt": 1792629042941.6567
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-1b0e521858fb",
@@ -69,27 +69,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 786980,
-    "updatedAt": 1792630297200.9016
-  },
-  {
-    "id": "media-5f24b7db73cb",
-    "filename": "748161192_18399534061093212_7829907628821861849_n.jpg",
-    "type": "image",
-    "src": "media/748161192_18399534061093212_7829907628821861849_n.jpg",
-    "title": "Informasi Layanan Publik",
-    "desc": "Foto poster display informasi",
-    "size": 1005705,
-    "updatedAt": 1792630297122.8384
-  },
-  {
-    "id": "media-f85113ef0de4",
-    "filename": "746984296_18399534043093212_8057646251437181655_n.jpg",
-    "type": "image",
-    "src": "media/746984296_18399534043093212_8057646251437181655_n.jpg",
-    "title": "Informasi Layanan Publik",
-    "desc": "Foto poster display informasi",
-    "size": 906780,
-    "updatedAt": 1792630294933.0164
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-61952616dbaa",
@@ -99,7 +79,27 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 810589,
-    "updatedAt": 1792630294074.9016
+    "updatedAt": 1792631595000
+  },
+  {
+    "id": "media-f85113ef0de4",
+    "filename": "746984296_18399534043093212_8057646251437181655_n.jpg",
+    "type": "image",
+    "src": "media/746984296_18399534043093212_8057646251437181655_n.jpg",
+    "title": "Informasi Layanan Publik",
+    "desc": "Foto poster display informasi",
+    "size": 906780,
+    "updatedAt": 1792631595000
+  },
+  {
+    "id": "media-5f24b7db73cb",
+    "filename": "748161192_18399534061093212_7829907628821861849_n.jpg",
+    "type": "image",
+    "src": "media/748161192_18399534061093212_7829907628821861849_n.jpg",
+    "title": "Informasi Layanan Publik",
+    "desc": "Foto poster display informasi",
+    "size": 1005705,
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-022c0d71e59b",
@@ -109,47 +109,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 119014,
-    "updatedAt": 1792630203021.727
-  },
-  {
-    "id": "media-8dd8fecad8e0",
-    "filename": "snapgram.io_yhm93qt5cwz0.mp4",
-    "type": "video",
-    "src": "media/snapgram.io_yhm93qt5cwz0.mp4",
-    "title": "Video Layanan Publik",
-    "desc": "Video informasi display",
-    "size": 4894087,
-    "updatedAt": 1792630044681.6997
-  },
-  {
-    "id": "media-c1501255c9bb",
-    "filename": "snapgram.io_qyr3mqiw3myz.mp4",
-    "type": "video",
-    "src": "media/snapgram.io_qyr3mqiw3myz.mp4",
-    "title": "Video Layanan Publik",
-    "desc": "Video informasi display",
-    "size": 1875265,
-    "updatedAt": 1792629996199.3242
-  },
-  {
-    "id": "media-9d781774a3f5",
-    "filename": "snapgram.io_43cuxhragtdq.mp4",
-    "type": "video",
-    "src": "media/snapgram.io_43cuxhragtdq.mp4",
-    "title": "Video Layanan Publik",
-    "desc": "Video informasi display",
-    "size": 10131850,
-    "updatedAt": 1792629825582.4856
-  },
-  {
-    "id": "media-56a0c7632f04",
-    "filename": "WhatsApp Image 2026-10-14 at 16.23.29.jpeg",
-    "type": "image",
-    "src": "media/WhatsApp Image 2026-10-14 at 16.23.29.jpeg",
-    "title": "Informasi Layanan Publik",
-    "desc": "Foto poster display informasi",
-    "size": 540391,
-    "updatedAt": 1791969851113.01
+    "updatedAt": 1792631595000
   },
   {
     "id": "media-13ccfb9f02f5",
@@ -159,67 +119,47 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
     "size": 199979,
-    "updatedAt": 1791969822120.9292
+    "updatedAt": 1792631595000
   },
   {
-    "id": "media-d0096ec6c835",
-    "filename": "4.jpg",
+    "id": "media-56a0c7632f04",
+    "filename": "WhatsApp Image 2026-10-14 at 16.23.29.jpeg",
     "type": "image",
-    "src": "media/4.jpg",
-    "title": "Poster Layanan #4",
+    "src": "media/WhatsApp Image 2026-10-14 at 16.23.29.jpeg",
+    "title": "Informasi Layanan Publik",
     "desc": "Foto poster display informasi",
-    "size": 188500,
-    "updatedAt": 1791968021287.9285
+    "size": 540391,
+    "updatedAt": 1792631595000
   },
   {
-    "id": "media-032b2cc93686",
-    "filename": "5.jpg",
-    "type": "image",
-    "src": "media/5.jpg",
-    "title": "Poster Layanan #5",
-    "desc": "Foto poster display informasi",
-    "size": 85173,
-    "updatedAt": 1791968014872.7336
+    "id": "media-9d781774a3f5",
+    "filename": "snapgram.io_43cuxhragtdq.mp4",
+    "type": "video",
+    "src": "media/snapgram.io_43cuxhragtdq.mp4",
+    "title": "Video Layanan Publik",
+    "desc": "Video informasi display",
+    "size": 10131850,
+    "updatedAt": 1792631595000
   },
   {
-    "id": "media-799bad5a3b51",
-    "filename": "3.jpg",
-    "type": "image",
-    "src": "media/3.jpg",
-    "title": "Poster Layanan #3",
-    "desc": "Foto poster display informasi",
-    "size": 142473,
-    "updatedAt": 1791968012877.233
+    "id": "media-c1501255c9bb",
+    "filename": "snapgram.io_qyr3mqiw3myz.mp4",
+    "type": "video",
+    "src": "media/snapgram.io_qyr3mqiw3myz.mp4",
+    "title": "Video Layanan Publik",
+    "desc": "Video informasi display",
+    "size": 1875265,
+    "updatedAt": 1792631595000
   },
   {
-    "id": "media-156005c5baf4",
-    "filename": "2.jpg",
-    "type": "image",
-    "src": "media/2.jpg",
-    "title": "Poster Layanan #2",
-    "desc": "Foto poster display informasi",
-    "size": 110677,
-    "updatedAt": 1791967997763.1826
-  },
-  {
-    "id": "media-f3ccdd27d200",
-    "filename": "1.jpg",
-    "type": "image",
-    "src": "media/1.jpg",
-    "title": "Poster Layanan #1",
-    "desc": "Foto poster display informasi",
-    "size": 161083,
-    "updatedAt": 1791967996356.2107
-  },
-  {
-    "id": "media-47832736bcf5",
-    "filename": "Pengumuman BPD BARU.png",
-    "type": "image",
-    "src": "media/Pengumuman BPD BARU.png",
-    "title": "Pengumuman BPD BARU",
-    "desc": "Foto poster display informasi",
-    "size": 557113,
-    "updatedAt": 1791967274909.9285
+    "id": "media-8dd8fecad8e0",
+    "filename": "snapgram.io_yhm93qt5cwz0.mp4",
+    "type": "video",
+    "src": "media/snapgram.io_yhm93qt5cwz0.mp4",
+    "title": "Video Layanan Publik",
+    "desc": "Video informasi display",
+    "size": 4894087,
+    "updatedAt": 1792631595000
   }
 ];
 if (typeof window.__onMediaManifestUpdated === 'function') { window.__onMediaManifestUpdated(window.__MEDIA_MANIFEST__); }
