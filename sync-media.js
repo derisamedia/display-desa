@@ -8,23 +8,55 @@ const MEDIA_DIR = path.join(__dirname, 'media');
 const MANIFEST_JSON_PATH = path.join(MEDIA_DIR, 'manifest.json');
 const MANIFEST_JS_PATH = path.join(MEDIA_DIR, 'manifest.js');
 
-// Known default descriptions and titles for default files
+// Known default descriptions and titles for known media files
 const KNOWN_METADATA = {
-  '847287402_18109332539213351_4384306797872519912_n.jpg': {
+  'kkcatin.jpg': {
+    title: 'Informasi Layanan KK Catin',
+    desc: 'Informasi layanan administrasi Kartu Keluarga Calon Pengantin'
+  },
+  'ktp1.jpg': {
+    title: 'Informasi Layanan KTP-el (1)',
+    desc: 'Panduan layanan administrasi kependudukan KTP Elektronik'
+  },
+  'ktp2.jpg': {
+    title: 'Informasi Layanan KTP-el (2)',
+    desc: 'Panduan layanan administrasi kependudukan KTP Elektronik'
+  },
+  'ktp3.jpg': {
+    title: 'Informasi Layanan KTP-el (3)',
+    desc: 'Panduan layanan administrasi kependudukan KTP Elektronik'
+  },
+  'ktp4.jpg': {
+    title: 'Informasi Layanan KTP-el (4)',
+    desc: 'Panduan layanan administrasi kependudukan KTP Elektronik'
+  },
+  'sanggah0.jpg': {
     title: 'Apa Yang Berbeda Dalam Perlinsos?',
     desc: 'Dua formulir sanggahan: Form Sanggah Singkat & Form DTSEN'
   },
-  '847939110_18109332530213351_4722421588133763099_n.jpg': {
-    title: 'Data Kamu Tidak Sesuai?',
-    desc: 'Panduan pengajuan sanggahan resmi melalui Portal Perlinsos'
-  },
-  '848026564_18109332548213351_8016544548393381962_n.jpg': {
+  'sanggah1.jpg': {
     title: 'Bagaimana Mengetahui Apa Yang Perlu Disanggah?',
     desc: 'Cek alasan tidak layak dan periksa kesesuaian data kondisi sebenarnya'
   },
-  '848439103_18109332575213351_3066274871475878244_n.jpg': {
+  'sanggah2.jpg': {
+    title: 'Data Kamu Tidak Sesuai?',
+    desc: 'Panduan pengajuan sanggahan resmi melalui Portal Perlinsos'
+  },
+  'sanggah3.jpg': {
     title: 'Hasil Perlinsos Belum Sesuai Kondisi Kamu?',
     desc: 'Informasi hak sanggah dan peninjauan kesejahteraan masyarakat'
+  },
+  'sanggah4.jpeg': {
+    title: 'Panduan Sanggah Perlinsos (4)',
+    desc: 'Informasi pengajuan sanggahan data Perlinsos'
+  },
+  'sanggah5.jpeg': {
+    title: 'Panduan Sanggah Perlinsos (5)',
+    desc: 'Informasi pengajuan sanggahan data Perlinsos'
+  },
+  'UHCNEW.mp4': {
+    title: 'Video Informasi Layanan UHC',
+    desc: 'Tayangan video informasi jaminan kesehatan UHC'
   },
   'snapgram.io_oe949efymsiu.mp4': {
     title: 'Video Display Informasi Layanan Publik 1',
@@ -109,8 +141,7 @@ function scanMediaFiles() {
   // Deterministic sorting:
   // 1. Custom order from media/order.json (if present)
   // 2. Files with leading sequence numbers (e.g. 01_..., 1.jpg, 02-video.mp4) in numeric order
-  // 3. Curated KNOWN_METADATA items in defined order
-  // 4. Remaining images (natural A-Z / numeric sort), then remaining videos (natural A-Z / numeric sort)
+  // 3. Images first (natural A-Z / numeric sort), then videos (natural A-Z / numeric sort)
   let customOrder = [];
   const orderFilePath = path.join(MEDIA_DIR, 'order.json');
   if (fs.existsSync(orderFilePath)) {
@@ -125,7 +156,6 @@ function scanMediaFiles() {
     return m ? parseInt(m[1], 10) : null;
   };
 
-  const defaultKeys = Object.keys(KNOWN_METADATA);
   items.sort((a, b) => {
     const custA = customOrder.indexOf(a.filename);
     const custB = customOrder.indexOf(b.filename);
@@ -141,12 +171,6 @@ function scanMediaFiles() {
     }
     if (seqA !== null) return -1;
     if (seqB !== null) return 1;
-
-    const idxA = defaultKeys.indexOf(a.filename);
-    const idxB = defaultKeys.indexOf(b.filename);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
 
     if (a.type !== b.type) {
       return a.type === 'image' ? -1 : 1;

@@ -668,17 +668,21 @@ button {
   justify-content: center;
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
   transition: opacity 0.8s ease, transform 0.8s ease;
 }
 
 .slide-element.active {
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
   z-index: 2;
 }
 
 .slide-element.previous {
   opacity: 0;
+  visibility: visible;
+  pointer-events: none;
   z-index: 1;
 }
 
@@ -876,18 +880,19 @@ button {
   bottom: 50px;
   left: 50%;
   transform: translateX(-50%);
-  width: min(94%, 980px);
-  min-height: 72px;
+  width: auto;
+  max-width: 94%;
+  min-height: 64px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 12px 24px;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 20px;
   background: var(--bg-glass-heavy);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--border-bright);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-full);
   box-shadow: var(--shadow-lg), 0 0 35px rgba(0, 0, 0, 0.5);
   z-index: 25;
 }
@@ -1034,11 +1039,12 @@ button {
 
 /* Slide Timer Track */
 .slide-timer-track {
-  width: 110px;
+  width: 140px;
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: var(--radius-full);
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .slide-timer-fill {
@@ -1811,6 +1817,15 @@ input:checked + .slider:before {
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
+.settings-video-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
 .settings-media-title {
   white-space: nowrap;
   overflow: hidden;
@@ -1886,6 +1901,16 @@ input:checked + .slider:before {
   align-items: center;
   justify-content: center;
   z-index: 2;
+}
+
+.lightbox-wrapper .modal-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  background: rgba(16, 23, 38, 0.85);
+  border: 1px solid var(--border-bright);
+  color: var(--text-bright);
 }
 
 .lightbox-content-box {
@@ -2020,7 +2045,7 @@ input:checked + .slider:before {
   .top-header { height: 90px; padding: 0 48px; }
   .brand-title { font-size: 1.1rem; }
   .clock-time { font-size: 1.4rem; }
-  .display-controls-bar { width: 1200px; min-height: 90px; bottom: 65px; }
+  .display-controls-bar { min-height: 78px; bottom: 65px; gap: 22px; padding: 14px 28px; }
   .slide-title { font-size: 1.25rem; }
   .slide-desc { font-size: 0.95rem; }
   .running-ticker { height: 48px; }
@@ -2040,15 +2065,12 @@ input:checked + .slider:before {
   .brand-subtitle, .clock-date, .btn-label, .ratio-label { display: none; }
   .reels-story-bars { top: 70px; }
   .display-controls-bar {
-    width: 94%;
+    max-width: 94%;
     bottom: 46px;
-    padding: 10px 14px;
-    flex-wrap: wrap;
+    padding: 8px 14px;
     gap: 10px;
   }
-  .slide-meta { max-width: 100%; order: 1; }
-  .center-playback-controls { order: 2; margin: 0 auto; }
-  .slide-counter-wrapper { order: 3; }
+  .slide-timer-track { width: 90px; }
   .nav-arrow { width: 44px; height: 44px; }
   .nav-arrow-left { left: 10px; }
   .nav-arrow-right { right: 10px; }
@@ -2058,7 +2080,7 @@ input:checked + .slider:before {
 /* Vertical / Portrait Kiosk & Signage Displays */
 @media (orientation: portrait) {
   .display-controls-bar {
-    width: 92%;
+    max-width: 92%;
     bottom: 50px;
   }
   .slide-media {

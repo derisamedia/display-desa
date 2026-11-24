@@ -4,34 +4,45 @@
  */
 
 // ===================================================================
-// DEFAULT MEDIA ITEMS
+// DEFAULT MEDIA ITEMS (FALLBACK WHEN MANIFEST UNAVAILABLE) & WEB SLIDES
 // ===================================================================
+const DEFAULT_WEB_ITEMS = [
+  {
+    id: 'def-web-cuaca',
+    type: 'web',
+    src: 'https://siaga112.bogorkab.go.id/cuaca-kecamatan',
+    title: 'Prakiraan Cuaca 40 Kecamatan',
+    desc: 'Live Cuaca BMKG Kabupaten Bogor • Portal Siaga 112',
+    duration: 20000
+  }
+];
+
 const DEFAULT_MEDIA = [
   {
     id: 'def-1',
     type: 'image',
-    src: 'media/847287402_18109332539213351_4384306797872519912_n.jpg',
+    src: 'media/sanggah0.jpg',
     title: 'Apa Yang Berbeda Dalam Perlinsos?',
     desc: 'Dua formulir sanggahan: Form Sanggah Singkat & Form DTSEN'
   },
   {
     id: 'def-2',
     type: 'image',
-    src: 'media/847939110_18109332530213351_4722421588133763099_n.jpg',
-    title: 'Data Kamu Tidak Sesuai?',
-    desc: 'Panduan pengajuan sanggahan resmi melalui Portal Perlinsos'
-  },
-  {
-    id: 'def-3',
-    type: 'image',
-    src: 'media/848026564_18109332548213351_8016544548393381962_n.jpg',
+    src: 'media/sanggah1.jpg',
     title: 'Bagaimana Mengetahui Apa Yang Perlu Disanggah?',
     desc: 'Cek alasan tidak layak dan periksa kesesuaian data kondisi sebenarnya'
   },
   {
+    id: 'def-3',
+    type: 'image',
+    src: 'media/sanggah2.jpg',
+    title: 'Data Kamu Tidak Sesuai?',
+    desc: 'Panduan pengajuan sanggahan resmi melalui Portal Perlinsos'
+  },
+  {
     id: 'def-4',
     type: 'image',
-    src: 'media/848439103_18109332575213351_3066274871475878244_n.jpg',
+    src: 'media/sanggah3.jpg',
     title: 'Hasil Perlinsos Belum Sesuai Kondisi Kamu?',
     desc: 'Informasi hak sanggah dan peninjauan kesejahteraan masyarakat'
   },
@@ -49,14 +60,7 @@ const DEFAULT_MEDIA = [
     title: 'Video Display Informasi Layanan Publik 2',
     desc: 'Tayangan video profil edukasi dan panduan informasi digital'
   },
-  {
-    id: 'def-web-cuaca',
-    type: 'web',
-    src: 'https://siaga112.bogorkab.go.id/cuaca-kecamatan',
-    title: 'Prakiraan Cuaca 40 Kecamatan',
-    desc: 'Live Cuaca BMKG Kabupaten Bogor • Portal Siaga 112',
-    duration: 20000
-  }
+  ...DEFAULT_WEB_ITEMS
 ];
 
 // ===================================================================
@@ -158,38 +162,53 @@ function openDatabase() {
 function getInitialMediaItems() {
   const list = [];
   const addedSrcs = new Set();
+  const hasManifest = Array.isArray(window.__MEDIA_MANIFEST__) && window.__MEDIA_MANIFEST__.length > 0;
 
-  // If manifest exists (from manifest.js or server), populate from manifest
-  if (Array.isArray(window.__MEDIA_MANIFEST__) && window.__MEDIA_MANIFEST__.length > 0) {
+  // If manifest exists (from manifest.js or server), populate from manifest (exact disk truth)
+  if (hasManifest) {
     window.__MEDIA_MANIFEST__.forEach(item => {
       const src = resolveMediaPath(item.src || ('media/' + item.filename));
       if (src && !addedSrcs.has(src)) {
         addedSrcs.add(src);
         list.push({
-          id: item.id || ('media-' + (item.filename || Math.random().toString(36).substr(2, 6))),
-          type: item.type || (src.endsWith('.mp4') || src.endsWith('.webm') ? 'video' : 'image'),
+          id: item.id || ('media-' + (item.filename || Math.random().toString(36).slice(2, 8))),
+          type: item.type || (/\.(mp4|webm|ogg|mov)$/i.test(src) ? 'video' : 'image'),
           src: src,
           title: item.title || 'Informasi Layanan',
           desc: item.desc || (item.type === 'video' ? 'Video informasi display' : 'Foto poster display informasi')
         });
       }
     });
-  }
 
-  // Ensure any DEFAULT_MEDIA not yet in list is included
-  DEFAULT_MEDIA.forEach(def => {
-    const src = resolveMediaPath(def.src);
-    if (!addedSrcs.has(src)) {
-      addedSrcs.add(src);
-      list.push({ ...def, src });
-    }
-  });
+    // Append default web dashboard items (cannot exist in media/ folder)
+    DEFAULT_WEB_ITEMS.forEach(webItem => {
+      const src = resolveMediaPath(webItem.src);
+      if (!addedSrcs.has(src)) {
+        addedSrcs.add(src);
+        list.push({ ...webItem, src });
+      }
+    });
+  } else {
+    // Fallback only when no manifest is loaded
+    DEFAULT_MEDIA.forEach(def => {
+      const src = resolveMediaPath(def.src);
+      if (!addedSrcs.has(src)) {
+        addedSrcs.add(src);
+        list.push({ ...def, src });
+      }
+    });
+  }
 
   return list;
 }
 
 async function loadSavedMedia() {
+  const hasManifest = Array.isArray(window.__MEDIA_MANIFEST__) && window.__MEDIA_MANIFEST__.length > 0;
+  const manifestSrcSet = hasManifest
+    ? new Set(window.__MEDIA_MANIFEST__.map(item => resolveMediaPath(item.src || ('media/' + (item.filename || '')))))
+    : null;
   const baseDefaults = getInitialMediaItems();
+  const baseBySrc = new Map(baseDefaults.map(d => [resolveMediaPath(d.src), d]));
   const deletedSrcs = getDeletedMediaSrcs();
   const activeDefaults = baseDefaults.filter(def => !deletedSrcs.has(resolveMediaPath(def.src)));
 
@@ -205,7 +224,7 @@ async function loadSavedMedia() {
           let hasModifications = false;
           const hadExplicitOrder = items.every(item => typeof item.order === 'number');
 
-          // Hydrate blobs & heal paths
+          // Hydrate blobs, prune stale media/ files absent from manifest, and heal paths/metadata
           items = items
             .map(item => {
               if (item.fileBlob instanceof Blob) {
@@ -215,15 +234,27 @@ async function loadSavedMedia() {
                 hasModifications = true;
                 return null;
               }
-              const defItem = baseDefaults.find(d => d.id === item.id || d.src === item.src);
+              const resolved = resolveMediaPath(item.src);
+              const isExternalOrInline =
+                resolved.startsWith('data:') ||
+                resolved.startsWith('blob:') ||
+                resolved.startsWith('http://') ||
+                resolved.startsWith('https://');
+
+              // Immediately prune local media/* files that no longer exist in manifest
+              if (manifestSrcSet && !isExternalOrInline && !manifestSrcSet.has(resolved)) {
+                hasModifications = true;
+                return null;
+              }
+
+              const defItem = baseBySrc.get(resolved);
               if (defItem) {
-                if (item.src !== defItem.src) {
+                if (item.src !== defItem.src || item.title !== defItem.title || item.desc !== defItem.desc) {
                   hasModifications = true;
-                  return { ...item, src: defItem.src };
+                  return { ...item, src: defItem.src, title: defItem.title, desc: defItem.desc };
                 }
                 return item;
               }
-              const resolved = resolveMediaPath(item.src);
               if (resolved !== item.src) {
                 hasModifications = true;
                 return { ...item, src: resolved };
@@ -259,6 +290,20 @@ async function loadSavedMedia() {
               hasModifications = true;
             }
           });
+
+          // Re-sort after adding new defaults unless user has custom order
+          if (localStorage.getItem('display_custom_order') !== 'true') {
+            const defaultOrderMap = new Map(baseDefaults.map((d, idx) => [resolveMediaPath(d.src), idx]));
+            items.sort((a, b) => {
+              const ordA = defaultOrderMap.has(resolveMediaPath(a.src))
+                ? defaultOrderMap.get(resolveMediaPath(a.src))
+                : 10000 + (typeof a.order === 'number' ? a.order : 0);
+              const ordB = defaultOrderMap.has(resolveMediaPath(b.src))
+                ? defaultOrderMap.get(resolveMediaPath(b.src))
+                : 10000 + (typeof b.order === 'number' ? b.order : 0);
+              return ordA - ordB;
+            });
+          }
 
           if (items.length === 0) {
             items = [...baseDefaults];
@@ -329,6 +374,10 @@ const state = {
   slideTimer: null,
   slideStartTime: null,
   rafId: null,
+  videoFallbackTimer: null,
+  errorAdvanceTimer: null,
+  consecutiveErrors: 0,
+  currentProgressPct: 0,
   
   // Idle Auto-HUD
   idleTimer: null,
@@ -476,8 +525,6 @@ async function initApp() {
   if (state.media && state.media.length > 0) {
     state.media = state.media.map(item => {
       if (item.fileBlob instanceof Blob) return item;
-      const def = DEFAULT_MEDIA.find(d => d.id === item.id);
-      if (def) return { ...item, src: def.src };
       return { ...item, src: resolveMediaPath(item.src) };
     });
     saveMediaToDB(state.media);
@@ -528,12 +575,21 @@ function formatMediaTitle(filename) {
 function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
   if (!Array.isArray(manifestItems) || manifestItems.length === 0) return;
 
-  const validSrcs = new Set(manifestItems.map(item => resolveMediaPath(item.src || ('media/' + (item.filename || '')))));
+  const manifestMap = new Map();
+  manifestItems.forEach(item => {
+    const resolved = resolveMediaPath(item.src || ('media/' + (item.filename || '')));
+    if (resolved) manifestMap.set(resolved, item);
+  });
+
+  const validSrcs = new Set(manifestMap.keys());
   const deletedSrcs = getDeletedMediaSrcs();
   const originalCount = state.media.length;
+  const activeItemBefore = state.media[state.currentIndex];
+  const activeItemIdBefore = activeItemBefore?.id;
+  const activeItemSrcBefore = activeItemBefore ? resolveMediaPath(activeItemBefore.src) : null;
 
-  // 1. Remove deleted files (only if this is a complete manifest sync, not a partial discovery, and not on github.io)
-  if (!allowPartialMerge && !window.location.hostname.endsWith('github.io')) {
+  // 1. Remove deleted local media/* files (only on full manifest sync, never partial discovery)
+  if (!allowPartialMerge) {
     state.media = state.media.filter(item => {
       const src = resolveMediaPath(item.src);
       if (item.fileBlob instanceof Blob || src.startsWith('data:') || src.startsWith('blob:') || src.startsWith('http://') || src.startsWith('https://')) {
@@ -543,6 +599,22 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
     });
   }
   const removedCount = originalCount - state.media.length;
+
+  // 1b. Refresh metadata (title/desc) on existing manifest items if updated
+  let metaChanged = false;
+  state.media.forEach(item => {
+    const src = resolveMediaPath(item.src);
+    const mItem = manifestMap.get(src);
+    if (mItem) {
+      const nextTitle = mItem.title || item.title;
+      const nextDesc = mItem.desc || item.desc;
+      if (nextTitle !== item.title || nextDesc !== item.desc) {
+        item.title = nextTitle;
+        item.desc = nextDesc;
+        metaChanged = true;
+      }
+    }
+  });
 
   // 2. Add new files (skip items explicitly deleted by user)
   let addedCount = 0;
@@ -571,7 +643,6 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
     const manifestOrder = new Map(
       manifestItems.map((item, idx) => [resolveMediaPath(item.src || ('media/' + (item.filename || ''))), idx])
     );
-    const activeItemId = state.media[state.currentIndex]?.id;
     const prevIds = state.media.map(m => m.id).join(',');
     state.media.sort((a, b) => {
       const ordA = manifestOrder.has(resolveMediaPath(a.src)) ? manifestOrder.get(resolveMediaPath(a.src)) : 10000;
@@ -581,23 +652,46 @@ function syncMediaWithManifest(manifestItems, allowPartialMerge = false) {
     });
     if (state.media.map(m => m.id).join(',') !== prevIds) {
       orderChanged = true;
-      if (activeItemId) {
-        const newIdx = state.media.findIndex(m => m.id === activeItemId);
-        if (newIdx !== -1) state.currentIndex = newIdx;
-      }
     }
   }
 
-  if (addedCount > 0 || removedCount > 0 || orderChanged) {
-    if (state.currentIndex >= state.media.length) {
+  if (addedCount > 0 || removedCount > 0 || orderChanged || metaChanged) {
+    // Check whether the currently displayed slide still exists in state.media
+    let activeRemoved = false;
+    if (activeItemIdBefore || activeItemSrcBefore) {
+      const newIdx = state.media.findIndex(m =>
+        (activeItemIdBefore && m.id === activeItemIdBefore) ||
+        (activeItemSrcBefore && resolveMediaPath(m.src) === activeItemSrcBefore)
+      );
+      if (newIdx !== -1) {
+        state.currentIndex = newIdx;
+      } else {
+        activeRemoved = true;
+        if (state.currentIndex >= state.media.length) {
+          state.currentIndex = 0;
+        }
+      }
+    } else if (state.currentIndex >= state.media.length) {
       state.currentIndex = 0;
     }
+
     saveMediaToDB(state.media);
     renderStoryBars();
-    updateStoryBars(0);
+    updateStoryBars(activeRemoved ? 0 : state.currentProgressPct);
     renderGalleryGrid();
     renderSettingsMediaList();
     updateMediaCounters();
+
+    if (activeRemoved && state.media.length > 0 && state.activeView === 'slideshow') {
+      clearSlideTimer();
+      renderSlide(state.currentIndex);
+      if (state.isPlaying) {
+        startSlideTimer();
+      }
+    } else if (state.media[state.currentIndex]) {
+      updateSlideMetadata(state.media[state.currentIndex], state.currentIndex);
+    }
+
     if (addedCount > 0) {
       showToast(`📢 ${addedCount} file media baru otomatis ditambahkan ke display!`);
     }
@@ -882,6 +976,7 @@ function renderStoryBars() {
 }
 
 function updateStoryBars(currentProgressPct) {
+  state.currentProgressPct = Number.isFinite(currentProgressPct) ? currentProgressPct : 0;
   if (!elements.reelsStoryBars) return;
   const segments = elements.reelsStoryBars.querySelectorAll('.story-bar-segment');
   segments.forEach((seg, idx) => {
@@ -891,7 +986,7 @@ function updateStoryBars(currentProgressPct) {
       if (prog) prog.style.width = '100%';
     } else if (idx === state.currentIndex) {
       seg.classList.remove('completed');
-      if (prog) prog.style.width = `${currentProgressPct}%`;
+      if (prog) prog.style.width = `${state.currentProgressPct}%`;
     } else {
       seg.classList.remove('completed');
       if (prog) prog.style.width = '0%';
@@ -916,19 +1011,62 @@ function getActiveSlideVideo() {
     : null;
 }
 
+function scheduleVideoFallbackAdvance(video) {
+  clearTimeout(state.videoFallbackTimer);
+  state.videoFallbackTimer = setTimeout(() => {
+    if (!state.isPlaying || state.activeView !== 'slideshow') return;
+    const activeVideo = getActiveSlideVideo();
+    if (activeVideo === video && (video.paused || video.readyState < 2)) {
+      console.warn('[Display] Video tidak mulai diputar, melanjutkan ke slide berikutnya.');
+      nextSlide();
+    }
+  }, Math.max(state.slideDuration || 7000, 5000));
+}
+
 function playVideoWithFallback(video) {
   if (!video) return;
   const playPromise = video.play();
   if (playPromise && typeof playPromise.catch === 'function') {
-    playPromise.catch(() => {
+    playPromise.catch((err) => {
       // Autoplay blocked when unmuted -> mute and retry so 24/7 signage never stalls
       if (!video.muted) {
         state.isMuted = true;
         video.muted = true;
         syncMuteUI();
-        video.play().catch(err => console.warn('Video playback failed after mute fallback:', err));
+        video.play().catch(muteErr => {
+          console.warn('Video playback failed after mute fallback:', muteErr);
+          scheduleVideoFallbackAdvance(video);
+        });
+      } else {
+        console.warn('Muted video playback failed:', err);
+        scheduleVideoFallbackAdvance(video);
       }
     });
+  }
+}
+
+function getFallbackAmbientImage() {
+  const firstImg = state.media.find(m => m.type === 'image' && m.src);
+  if (firstImg) {
+    return `url("${encodeMediaUrl(resolveMediaPath(firstImg.src))}")`;
+  }
+  return 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1d4ed8 100%)';
+}
+
+function handleSlideLoadError(slideEl, item, mediaKind) {
+  if (!slideEl || !slideEl.classList.contains('active')) return;
+  console.warn(`[Display] ${mediaKind} gagal dimuat: ${item.src}`);
+  state.consecutiveErrors += 1;
+
+  if (state.media.length > 1 && state.consecutiveErrors < state.media.length) {
+    clearTimeout(state.errorAdvanceTimer);
+    state.errorAdvanceTimer = setTimeout(() => {
+      if (slideEl.classList.contains('active') && state.activeView === 'slideshow') {
+        nextSlide();
+      }
+    }, 350);
+  } else {
+    showToast(`Media tidak dapat dimuat: ${item.title || item.src}`);
   }
 }
 
@@ -947,7 +1085,7 @@ function renderSlide(index) {
   // Update Ambient Blurred Glow Backdrop
   if (elements.ambientMedia) {
     if (item.type === 'video') {
-      elements.ambientMedia.style.backgroundImage = `url("media/847287402_18109332539213351_4384306797872519912_n.jpg")`;
+      elements.ambientMedia.style.backgroundImage = getFallbackAmbientImage();
     } else if (item.type === 'web') {
       elements.ambientMedia.style.backgroundImage = `linear-gradient(135deg, #0284c7 0%, #0f172a 50%, #047857 100%)`;
     } else {
@@ -966,7 +1104,14 @@ function renderSlide(index) {
       prevVideo.onended = null;
       prevVideo.ontimeupdate = null;
       prevVideo.onerror = null;
+      prevVideo.onplaying = null;
+      prevVideo.onloadeddata = null;
       prevVideo.pause();
+    }
+    const prevImg = prevSlide.querySelector('img');
+    if (prevImg) {
+      prevImg.onerror = null;
+      prevImg.onload = null;
     }
     prevSlide.classList.remove('active');
     prevSlide.classList.add('previous');
@@ -998,7 +1143,17 @@ function renderSlide(index) {
     video.loop = false; // Advance to next slide when finished!
     video.className = 'slide-media';
 
+    video.onplaying = () => {
+      state.consecutiveErrors = 0;
+      clearTimeout(state.videoFallbackTimer);
+    };
+
+    video.onloadeddata = () => {
+      state.consecutiveErrors = 0;
+    };
+
     video.onerror = () => {
+      if (!slideEl.classList.contains('active')) return;
       if (!video.dataset.retried && !resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
         video.dataset.retried = '1';
         const fn = (item.src || '').split('/').pop().split('\\').pop();
@@ -1008,20 +1163,12 @@ function renderSlide(index) {
           return;
         }
       }
-      console.warn(`[Display] Video tidak dapat diputar: ${item.src}. Menghapus item.`);
-      state.media = state.media.filter(m => m.id !== item.id && m.src !== item.src);
-      saveMediaToDB(state.media);
-      updateMediaCounters();
-      renderStoryBars();
-      renderGalleryGrid();
-      renderSettingsMediaList();
-      if (state.isPlaying && state.media.length > 0) {
-        nextSlide();
-      }
+      handleSlideLoadError(slideEl, item, 'Video');
     };
 
     // When video ends, automatically go to next slide
     video.onended = () => {
+      if (!slideEl.classList.contains('active')) return;
       if (state.isPlaying && state.activeView === 'slideshow') {
         nextSlide();
       }
@@ -1040,6 +1187,7 @@ function renderSlide(index) {
     slideEl.appendChild(videoWrapper);
   } else if (item.type === 'web') {
     // Web Page / Dashboard Iframe element
+    state.consecutiveErrors = 0;
     const safeWebUrl = isSafeHttpUrl(resolvedSrc) ? resolvedSrc : 'about:blank';
     const webWrapper = document.createElement('div');
     webWrapper.className = 'web-media-wrapper';
@@ -1085,7 +1233,11 @@ function renderSlide(index) {
     img.alt = item.title || 'Display Media';
     img.className = 'slide-media';
     img.loading = 'eager';
+    img.onload = () => {
+      state.consecutiveErrors = 0;
+    };
     img.onerror = () => {
+      if (!slideEl.classList.contains('active')) return;
       if (!img.dataset.retried && !resolvedSrc.startsWith('blob:') && !resolvedSrc.startsWith('data:')) {
         img.dataset.retried = '1';
         const fn = (item.src || '').split('/').pop().split('\\').pop();
@@ -1095,16 +1247,7 @@ function renderSlide(index) {
           return;
         }
       }
-      console.warn(`[Display] File gambar tidak ditemukan di disk: ${item.src}. Menghapus item.`);
-      state.media = state.media.filter(m => m.id !== item.id && m.src !== item.src);
-      saveMediaToDB(state.media);
-      updateMediaCounters();
-      renderStoryBars();
-      renderGalleryGrid();
-      renderSettingsMediaList();
-      if (state.isPlaying && state.media.length > 0) {
-        nextSlide();
-      }
+      handleSlideLoadError(slideEl, item, 'Gambar');
     };
     slideEl.appendChild(img);
   }
@@ -1199,6 +1342,14 @@ function clearSlideTimer() {
   if (state.rafId) {
     cancelAnimationFrame(state.rafId);
     state.rafId = null;
+  }
+  if (state.videoFallbackTimer) {
+    clearTimeout(state.videoFallbackTimer);
+    state.videoFallbackTimer = null;
+  }
+  if (state.errorAdvanceTimer) {
+    clearTimeout(state.errorAdvanceTimer);
+    state.errorAdvanceTimer = null;
   }
   elements.slideTimerFill.style.width = '0%';
 }
@@ -1302,30 +1453,30 @@ function applyTransitionClass() {
 // ===================================================================
 // AUTO-HUD: HIDES CONTROLS ON IDLE IN SLIDESHOW MODE (FOR CLEAN TV)
 // ===================================================================
-function initAutoHud() {
-  function resetIdleTimer() {
-    if (state.isHudHidden) {
-      elements.app.classList.remove('controls-hidden');
-      state.isHudHidden = false;
-    }
-
-    clearTimeout(state.idleTimer);
-
-    // Only auto-hide if in slideshow view and no modal is active
-    if (state.activeView === 'slideshow' && !isAnyModalOpen()) {
-      state.idleTimer = setTimeout(() => {
-        elements.app.classList.add('controls-hidden');
-        state.isHudHidden = true;
-      }, state.idleDelay);
-    }
+function resetHudIdleTimer() {
+  if (state.isHudHidden) {
+    elements.app.classList.remove('controls-hidden');
+    state.isHudHidden = false;
   }
 
+  clearTimeout(state.idleTimer);
+
+  // Only auto-hide if in slideshow view and no modal is active
+  if (state.activeView === 'slideshow' && !isAnyModalOpen()) {
+    state.idleTimer = setTimeout(() => {
+      elements.app.classList.add('controls-hidden');
+      state.isHudHidden = true;
+    }, state.idleDelay);
+  }
+}
+
+function initAutoHud() {
   // Activity listeners
   ['mousemove', 'mousedown', 'keydown', 'touchstart'].forEach(evt => {
-    window.addEventListener(evt, resetIdleTimer, { passive: true });
+    window.addEventListener(evt, resetHudIdleTimer, { passive: true });
   });
 
-  resetIdleTimer();
+  resetHudIdleTimer();
 }
 
 function isAnyModalOpen() {
@@ -1464,15 +1615,14 @@ function updateMediaCounters() {
 let lightboxIndex = 0;
 
 function openLightbox(index) {
+  if (!state.media.length || index < 0 || index >= state.media.length) return;
   lightboxIndex = index;
   renderLightboxItem();
   elements.lightboxModal.classList.remove('hidden');
   elements.lightboxModal.setAttribute('aria-hidden', 'false');
 }
 
-function closeLightbox() {
-  elements.lightboxModal.classList.add('hidden');
-  elements.lightboxModal.setAttribute('aria-hidden', 'true');
+function cleanupLightboxMedia() {
   const lbVideo = elements.lightboxContentBox.querySelector('video');
   if (lbVideo) {
     lbVideo.pause();
@@ -1482,11 +1632,18 @@ function closeLightbox() {
   elements.lightboxContentBox.innerHTML = '';
 }
 
+function closeLightbox() {
+  elements.lightboxModal.classList.add('hidden');
+  elements.lightboxModal.setAttribute('aria-hidden', 'true');
+  cleanupLightboxMedia();
+  resetHudIdleTimer();
+}
+
 function renderLightboxItem() {
   const item = state.media[lightboxIndex];
   if (!item) return;
 
-  elements.lightboxContentBox.innerHTML = '';
+  cleanupLightboxMedia();
   elements.lightboxTitle.textContent = item.title;
   elements.lightboxDesc.textContent = item.desc;
 
@@ -1624,6 +1781,7 @@ function openAddMediaModal() {
 function closeAddMediaModal() {
   elements.addMediaModal.classList.add('hidden');
   elements.addMediaModal.setAttribute('aria-hidden', 'true');
+  resetHudIdleTimer();
 }
 
 // ===================================================================
@@ -1638,6 +1796,7 @@ function openSettingsModal() {
 function closeSettingsModal() {
   elements.settingsModal.classList.add('hidden');
   elements.settingsModal.setAttribute('aria-hidden', 'true');
+  resetHudIdleTimer();
 }
 
 function renderSettingsMediaList() {
@@ -1652,13 +1811,16 @@ function renderSettingsMediaList() {
     const safeTitle = escapeHtml(item.title || 'Informasi Layanan');
 
     let thumbHtml = '';
-    const thumbSrc = isVideo ? 'media/847287402_18109332539213351_4384306797872519912_n.jpg' : resolvedSrc;
     if (isWeb) {
       thumbHtml = `<div class="settings-media-thumb settings-web-thumb">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
       </div>`;
+    } else if (isVideo) {
+      thumbHtml = `<div class="settings-media-thumb settings-video-thumb">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+      </div>`;
     } else {
-      thumbHtml = `<img class="settings-media-thumb" src="${escapeHtml(encodeMediaUrl(thumbSrc))}" alt="thumb">`;
+      thumbHtml = `<img class="settings-media-thumb" src="${escapeHtml(encodeMediaUrl(resolvedSrc))}" alt="thumb">`;
     }
 
     const typeColor = isWeb ? 'var(--accent-cyan)' : (isVideo ? 'var(--accent-amber)' : 'var(--accent-emerald)');
@@ -1689,7 +1851,7 @@ function renderSettingsMediaList() {
     `;
 
     const thumbImg = row.querySelector('img.settings-media-thumb');
-    if (thumbImg) attachMediaFallback(thumbImg, thumbSrc);
+    if (thumbImg) attachMediaFallback(thumbImg, resolvedSrc);
 
     row.querySelectorAll('.settings-media-move-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -1937,11 +2099,13 @@ function switchView(view) {
   state.activeView = view;
   if (view === 'slideshow') {
     elements.app.className = 'app-container mode-slideshow';
+    state.isHudHidden = false;
     elements.slideshowStage.classList.remove('hidden');
     elements.gridGalleryView.classList.add('hidden');
     elements.btnViewSlideshow.classList.add('active');
     elements.btnViewGrid.classList.remove('active');
     applyFitMode();
+    resetHudIdleTimer();
     if (state.isPlaying) {
       const activeVideo = getActiveSlideVideo();
       if (activeVideo && activeVideo.paused) playVideoWithFallback(activeVideo);
@@ -1950,6 +2114,8 @@ function switchView(view) {
   } else {
     elements.app.className = 'app-container mode-grid';
     elements.app.classList.remove('controls-hidden');
+    state.isHudHidden = false;
+    clearTimeout(state.idleTimer);
     elements.slideshowStage.classList.add('hidden');
     elements.gridGalleryView.classList.remove('hidden');
     elements.btnViewSlideshow.classList.remove('active');
@@ -1982,24 +2148,36 @@ function initKeyboardShortcuts() {
     // If typing in input or textarea, don't trigger shortcuts
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
 
+    const lightboxOpen = !elements.lightboxModal.classList.contains('hidden');
+    const modalOpen = isAnyModalOpen();
+
+    if (e.key === 'Escape') {
+      if (lightboxOpen) closeLightbox();
+      if (!elements.addMediaModal.classList.contains('hidden')) closeAddMediaModal();
+      if (!elements.settingsModal.classList.contains('hidden')) closeSettingsModal();
+      return;
+    }
+
+    if (lightboxOpen) {
+      if (e.key === 'ArrowRight') nextLightbox();
+      else if (e.key === 'ArrowLeft') prevLightbox();
+      return;
+    }
+
+    if (modalOpen) return;
+
     switch (e.key) {
       case ' ':
-        e.preventDefault();
-        togglePlayPause();
+        if (state.activeView === 'slideshow') {
+          e.preventDefault();
+          togglePlayPause();
+        }
         break;
       case 'ArrowRight':
-        if (!elements.lightboxModal.classList.contains('hidden')) {
-          nextLightbox();
-        } else {
-          nextSlide();
-        }
+        if (state.activeView === 'slideshow') nextSlide();
         break;
       case 'ArrowLeft':
-        if (!elements.lightboxModal.classList.contains('hidden')) {
-          prevLightbox();
-        } else {
-          prevSlide();
-        }
+        if (state.activeView === 'slideshow') prevSlide();
         break;
       case 'f':
       case 'F':
@@ -2007,7 +2185,7 @@ function initKeyboardShortcuts() {
         break;
       case 'm':
       case 'M':
-        toggleMute();
+        if (state.activeView === 'slideshow') toggleMute();
         break;
       case 'g':
       case 'G':
@@ -2016,11 +2194,6 @@ function initKeyboardShortcuts() {
       case 's':
       case 'S':
         switchView('slideshow');
-        break;
-      case 'Escape':
-        if (!elements.lightboxModal.classList.contains('hidden')) closeLightbox();
-        if (!elements.addMediaModal.classList.contains('hidden')) closeAddMediaModal();
-        if (!elements.settingsModal.classList.contains('hidden')) closeSettingsModal();
         break;
     }
   });
