@@ -1,5 +1,5 @@
 // Auto-generated media manifest
-// Generated at: 2026-11-24T02:26:51.377Z
+// Generated at: 2026-11-24T04:29:20.360Z
 window.__MEDIA_MANIFEST__ = [
   {
     "id": "media-210ec5dd0acf",
@@ -9,7 +9,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan KK Catin",
     "desc": "Informasi layanan administrasi Kartu Keluarga Calon Pengantin",
     "size": 119014,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555368.616,
     "order": 0
   },
   {
@@ -20,7 +20,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan KTP-el (1)",
     "desc": "Panduan layanan administrasi kependudukan KTP Elektronik",
     "size": 810589,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555371.616,
     "order": 1
   },
   {
@@ -31,7 +31,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan KTP-el (2)",
     "desc": "Panduan layanan administrasi kependudukan KTP Elektronik",
     "size": 906780,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555374.616,
     "order": 2
   },
   {
@@ -42,7 +42,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan KTP-el (3)",
     "desc": "Panduan layanan administrasi kependudukan KTP Elektronik",
     "size": 786980,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555376.616,
     "order": 3
   },
   {
@@ -53,7 +53,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Informasi Layanan KTP-el (4)",
     "desc": "Panduan layanan administrasi kependudukan KTP Elektronik",
     "size": 1005705,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555379.616,
     "order": 4
   },
   {
@@ -64,7 +64,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Apa Yang Berbeda Dalam Perlinsos?",
     "desc": "Dua formulir sanggahan: Form Sanggah Singkat & Form DTSEN",
     "size": 551179,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555381.616,
     "order": 5
   },
   {
@@ -75,7 +75,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Bagaimana Mengetahui Apa Yang Perlu Disanggah?",
     "desc": "Cek alasan tidak layak dan periksa kesesuaian data kondisi sebenarnya",
     "size": 457035,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555382.616,
     "order": 6
   },
   {
@@ -86,7 +86,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Data Kamu Tidak Sesuai?",
     "desc": "Panduan pengajuan sanggahan resmi melalui Portal Perlinsos",
     "size": 439607,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555384.616,
     "order": 7
   },
   {
@@ -97,7 +97,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Hasil Perlinsos Belum Sesuai Kondisi Kamu?",
     "desc": "Informasi hak sanggah dan peninjauan kesejahteraan masyarakat",
     "size": 484281,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555385.616,
     "order": 8
   },
   {
@@ -108,7 +108,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Panduan Sanggah Perlinsos (4)",
     "desc": "Informasi pengajuan sanggahan data Perlinsos",
     "size": 199979,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555386.616,
     "order": 9
   },
   {
@@ -119,7 +119,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Panduan Sanggah Perlinsos (5)",
     "desc": "Informasi pengajuan sanggahan data Perlinsos",
     "size": 540391,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555386.616,
     "order": 10
   },
   {
@@ -130,7 +130,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 10131850,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555396.616,
     "order": 11
   },
   {
@@ -141,7 +141,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 1",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 5131596,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555406.616,
     "order": 12
   },
   {
@@ -152,7 +152,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 1875265,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555410.616,
     "order": 13
   },
   {
@@ -163,7 +163,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Display Informasi Layanan Publik 2",
     "desc": "Tayangan video profil edukasi dan panduan informasi digital",
     "size": 4836284,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555415.616,
     "order": 14
   },
   {
@@ -174,7 +174,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Layanan Publik",
     "desc": "Video informasi display",
     "size": 4894087,
-    "updatedAt": 1792631595000,
+    "updatedAt": 1795494555425.616,
     "order": 15
   },
   {
@@ -185,7 +185,7 @@ window.__MEDIA_MANIFEST__ = [
     "title": "Video Informasi Layanan UHC",
     "desc": "Tayangan video informasi jaminan kesehatan UHC",
     "size": 5960624,
-    "updatedAt": 1795486718319.5652,
+    "updatedAt": 1795494555366.616,
     "order": 16
   }
 ];
